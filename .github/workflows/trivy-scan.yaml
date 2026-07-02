@@ -1,0 +1,60 @@
+name: trivy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - '.github/workflows/trivy-scan.yaml'
+      - '.trivyignore.yaml'
+  pull_request:
+  schedule:
+    - cron: '5 5 * * 2'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    name: Trivy scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            source:
+              - '**/*.go'
+              - go.mod
+              - go.sum
+              - '.github/workflows/trivy-scan.yaml'
+              - '.trivyignore.yaml'
+
+      - if: steps.filter.outputs.source == 'true' || github.event_name != 'pull_request'
+        name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: .
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore.yaml'
+
+      - if: steps.filter.outputs.source == 'true' || github.event_name != 'pull_request'
+        name: Upload filesystem scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+          category: trivy-fs
