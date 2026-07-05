@@ -1,0 +1,42 @@
+image:
+  repository: ghcr.io/upcloud-tools/karpenter-upcloud-test
+  tag: ""
+  pullPolicy: Always
+
+# Credentials — token-based auth.
+# To use an existing secret, set existingSecret (key must be "token").
+# To create a new secret via Helm, set credentials.token.
+existingSecret: ""
+existingSecretTokenKey: token
+
+credentials:
+  token: ""
+
+# Cluster UUID (required) — zone and API server endpoint are auto-detected via the UpCloud API
+clusterUUID: ""
+
+# OS template UUID (optional — defaults to Debian 13)
+templateUUID: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+extraEnv: []
+
+podLabels: {}
+
+podAnnotations: {}
+
+# Default: avoid karpenter-provisioned nodes, containing karpenter.sh/nodepool label.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: DoesNotExist

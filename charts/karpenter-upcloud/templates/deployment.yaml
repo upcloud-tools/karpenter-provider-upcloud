@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "karpenter-upcloud.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "karpenter-upcloud.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "karpenter-upcloud.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "karpenter-upcloud.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+      annotations:
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+    spec:
+      serviceAccountName: {{ include "karpenter-upcloud.fullname" . }}
+      containers:
+        - name: karpenter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: UPCLOUD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "karpenter-upcloud.secretName" . }}
+                  key: {{ .Values.existingSecretTokenKey }}
+            - name: UPCLOUD_KUBERNETES_CLUSTER_ID
+              value: {{ required "clusterUUID is required" .Values.clusterUUID }}
+            {{- if .Values.templateUUID }}
+            - name: UPCLOUD_TEMPLATE_UUID
+              value: {{ .Values.templateUUID }}
+            {{- end }}
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{ end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

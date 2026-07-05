@@ -1,0 +1,7 @@
+apiVersion: karpenter.upcloud.com/v1alpha1
+kind: UpCloudNodeClass
+metadata:
+  name: default
+spec:
+  zone: de-fra1
+  plan: 2xCPU-4GB
