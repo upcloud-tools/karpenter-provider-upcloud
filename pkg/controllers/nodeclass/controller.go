@@ -62,6 +62,7 @@ func (r *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	log.FromContext(ctx).Info("validation succeeded")
 	nodeClass.StatusConditions().SetTrue(status.ConditionReady)
+	nodeClass.Status.Hash = nodeClass.Hash()
 
 	if !equality.Semantic.DeepEqual(stored, nodeClass) {
 		if err := r.Status().Patch(ctx, nodeClass, client.MergeFromWithOptions(stored, client.MergeFromWithOptimisticLock{})); err != nil {

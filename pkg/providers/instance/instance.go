@@ -26,30 +26,36 @@ func NewProvider(svc service.Server, templateUUID, networkUUID string) *Provider
 	}
 }
 
-func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string) (*upcloud.ServerDetails, error) {
+func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storageGB int, storageTier string) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
 	labels[managedLabel] = "true"
 
+	labelSlice := &upcloud.LabelSlice{}
+	for k, v := range labels {
+		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
+	}
+
 	createReq := &request.CreateServerRequest{
+		Labels:   labelSlice,
 		Zone:     zone,
 		Hostname: hostname,
 		Title:    hostname,
 		Plan:     plan,
 		StorageDevices: request.CreateServerStorageDeviceSlice{
 			{
-				Action:  "clone",
-				Storage: p.templateUUID,
-				Title:   hostname + "-root",
-				Tier:    "maxiops",
-				Size:    20,
+			Action:  "clone",
+			Storage: p.templateUUID,
+			Title:   hostname + "-root",
+			Tier:    storageTier,
+			Size:    storageGB,
 			},
 		},
 		Networking: &request.CreateServerNetworking{
 			Interfaces: request.CreateServerInterfaceSlice{
 				{
-					Type:    "private",
+					Type: "private",
 					Network: p.networkUUID,
 					IPAddresses: request.CreateServerIPAddressSlice{
 						{Family: "IPv4"},
@@ -69,8 +75,8 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 				},
 			},
 		},
-		UserData:  userData,
-		Metadata:  upcloud.True,
+		UserData: userData,
+		Metadata: upcloud.True,
 	}
 
 	return p.svc.CreateServer(ctx, createReq)

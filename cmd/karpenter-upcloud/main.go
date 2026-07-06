@@ -83,6 +83,7 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 		itProvider,
 		zone,
 		clusterEndpoint,
+		opts.RepairToleration,
 	)
 
 	decCp := overlay.Decorate(cp, op.GetClient(), op.InstanceTypeStore)

@@ -6,8 +6,11 @@
 
 Karpenter provider implementation for [UpCloud](https://upcloud.com), enabling efficient, just-in-time node autoscaling.
 
-> **Beta** — in working state but not yet production-ready. Core provisioning and scale-from-zero work,
-> but drift detection, node repair, and comprehensive e2e tests are still in progress.
+> **Beta** — in working state but not yet production-ready. Core provisioning, scale-from-zero,
+> drift detection, node repair, GPU scheduling, and spot capacity all work; broader end-to-end
+> coverage against live clusters is still being expanded.
+
+**Note** that the provider suffers from this upstream bug: https://github.com/kubernetes-sigs/karpenter/issues/3121. This results in n + 1 VM being started, so for one pod, two VMs will be started, for 2 pods, 3 VMs will be started, and so on. It's not a huge problem as the VM will be terminated when empty after the consolidation period. That means you'll pay 1h of that VM's cost even if it's not being used. As soon as a fix is available, I'll update this provider ASAP.
 
 ## How Karpenter Works
 
@@ -89,7 +92,64 @@ individual servers directly — the same approach every other Karpenter provider
    - The server boots, runs cloud-init, and joins the cluster via `kubeadm join`
 4. `Delete()` calls `DeleteServerAndStorages()` to terminate the server
 5. `List()` / `Get()` use `GetServers()` / `GetServerDetails()` filtered by the
-   `karpenter.upcloud.com/managed` label
+    `karpenter.upcloud.com/managed` label
+
+### Drift detection
+
+When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.upcloud.com/nodeclass-hash`).
+On every reconciliation `IsDrifted()` compares that stored hash against the live `UpCloudNodeClass`. If they differ, the NodeClaim is marked drifted and Karpenter cordons, drains, and terminates it so a replacement is launched with the new config.
+
+The following fields trigger drift when changed: `zone`, `plan`, `storageGB`, `storageTier`, `sshKeys`, `kubeletArgs`, `labels`, and `taints`.
+
+Nodes created before drift detection existed carry no hash annotation and are left untouched to avoid disrupting running workloads.
+
+### Instance type scope
+
+`GetInstanceTypes()` discovers plans via `GetPlans()` and surfaces them as Karpenter instance types. The default scope is **CloudNative-first**:
+
+- **Included by default:** `CLOUDNATIVE-*` plans and GPU plans (`gpu_amount > 0`, including `GPU-SPOT-*`).
+- **Excluded by default:** `STARTER` and `PREMIUM` plans — opt in per family below.
+
+Opt in to additional families with environment variables on the provider:
+
+| Variable | Effect |
+|----------|--------|
+| `UPCLOUD_ALLOW_STARTER_PLANS` | Also include `STARTER-*` plans (e.g. `true`). |
+| `UPCLOUD_ALLOW_PREMIUM_PLANS` | Also include `PREMIUM-*` plans (e.g. `true`). |
+
+> GPU plans (`GPU-*` / `GPU-SPOT-*`) are included by default and advertise `nvidia.com/gpu` capacity, so pods requesting GPU resources schedule onto them. The GPU device plugin must be installed in the cluster for the resource to be consumable on the node.
+> `CLOUDNATIVE-*` / GPU plans report `storage_size: 0`; the node boot disk is still provisioned from the configurable `storageGB` (default 20GB).
+
+### Node storage
+
+Each node gets a single root disk cloned from the OS template. The size and tier are configured per `UpCloudNodeClass`:
+
+- `storageGB` — disk size in GB. Defaults to **20** when unset.
+- `storageTier` — `standard` (default), `maxiops`, or `hdd`.
+
+Karpenter does not size disks from pod storage requests; the disk is a fixed, configurable value and is advertised as the node's `ephemeral-storage` capacity. PersistentVolumeClaims are provisioned by the CSI driver and do not affect node selection.
+
+### Spot instances
+
+UpCloud exposes spot capacity as dedicated plan names (e.g. `GPU-SPOT-8xCPU-64GB-1xL4`). The provider
+surfaces each plan as its own instance type: on-demand plans carry `karpenter.sh/capacity-type: on-demand`
+and spot plans carry `karpenter.sh/capacity-type: spot`. A NodePool requesting
+`karpenter.sh/capacity-type: spot` is matched by Karpenter's scheduler to spot plans only; when no
+spot plan matches the requested shape, no instance type is found and the pod stays unscheduled (no
+silent fallback to on-demand). Spot pricing is taken from the live catalog and used for cost-aware
+scheduling.
+
+> To run a NodePool on spot, set `spec.template.spec.requirements: - key: karpenter.sh/capacity-type, operator: In, values: ["spot"]`.
+
+### Node repair
+
+Karpenter's built-in `node.health` controller calls the provider's `RepairPolicies()` and force-terminates (then replaces) any node that stays in an unhealthy state past its toleration window. This provider watches the standard Kubernetes `Ready` condition:
+
+- `Ready = False` (NotReady — kubelet down or the node never joined) for longer than the toleration, or
+- `Ready = Unknown` (kubelet stopped reporting) for longer than the toleration.
+
+The toleration defaults to **30 minutes** and is configurable via `UPCLOUD_REPAIR_TOLERATION` (any Go duration string, e.g. `15m`, `1h`). Node *termination* (a node with a deletion timestamp that won't go away) is handled separately by Karpenter's built-in `node.termination` controller, so it is not part of `RepairPolicies()`.
+
 
 ### Scale-from-zero
 
@@ -105,6 +165,7 @@ with a 30-minute TTL.
 | `UPCLOUD_TOKEN` | UpCloud API token |
 | `UPCLOUD_KUBERNETES_CLUSTER_ID` | UKS cluster UUID — zone and API server endpoint auto-detected |
 | `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: Debian 13) |
+| `UPCLOUD_REPAIR_TOLERATION` | How long a `NotReady`/`Unknown` node is tolerated before Karpenter recycles it (optional, default: `30m`) |
 
 #### Required UpCloud API permissions
 
@@ -113,18 +174,12 @@ The credentials need the following permissions in the UpCloud API:
 | Resource | Permission | Reason |
 |----------|------------|
 | Kubernetes clusters | `read` | Auto-detect zone, plan, and API server endpoint of the target cluster |
-| Kubernetes kubeconfig | `read` | Resolve cluster API server endpoint for `kubeadm join` |
 | Server | `read`, `create`, `delete` | Provision and terminate Karpenter-managed nodes |
 | Storage | `read`, `create`, `delete` | Create/clean up cloud-init and OS disk storage |
 | Network | `read` | Attach nodes to the correct network |
-| Pricing | `read` | Get instance type pricing for cost-aware scheduling |
 | Labels | `write` | Tag servers with `karpenter.upcloud.com/managed=true` |
 
-On UKS, the built-in `upcloud` secret in `kube-system` (used by the CSI driver) needs to include a `token` key with your API token. Use a dedicated token or sub-account with the above permissions.
-
-#### Authentication
-
-`UPCLOUD_TOKEN` is used with bearer auth.
+Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN` is used with bearer auth.
 
 ## Project structure
 

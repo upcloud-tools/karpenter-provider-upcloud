@@ -102,8 +102,7 @@ func generateKubeletCert(ctx context.Context, kubeClient kubernetes.Interface, n
 	}
 
 	// Re-fetch the CSR to have a clean server-side copy before approving.
-	// The object returned by Create may have metadata that confuses the
-	// approval subresource on some server versions.
+	// The object returned by Create may have metadata that confuses the approval subresource on some server versions.
 	fresh, err := kubeClient.CertificatesV1().CertificateSigningRequests().Get(ctx, csrName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("getting CSR for approval: %w", err)
@@ -122,8 +121,7 @@ func generateKubeletCert(ctx context.Context, kubeClient kubernetes.Interface, n
 	}
 
 	var signedCert []byte
-	// Use a detached context so the wait isn't bounded by the controller's
-	// short reconciliation deadline.
+	// Use a detached context so the wait isn't bounded by the controller's short reconciliation deadline.
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer waitCancel()
 	pollErr := wait.PollUntilContextTimeout(waitCtx, 2*time.Second, 90*time.Second, true, func(ctx context.Context) (bool, error) {

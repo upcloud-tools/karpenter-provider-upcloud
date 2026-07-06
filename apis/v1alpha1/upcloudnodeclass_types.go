@@ -9,7 +9,7 @@ import (
 type UpCloudNodeClassSpec struct {
 	// Zone is the UpCloud data center zone (e.g. "de-fra1", "fi-hel2").
 	Zone string `json:"zone"`
-	// Plan is the UKS node group plan name (e.g. "2xCPU-4GB", "gpu-h100-1x", "cloud-native").
+	// Plan is the UKS node group plan name (e.g. "2xCPU-4GB", "PREMIUM-1xCPU-2GB", "CLOUDNATIVE-2xCPU-16GB").
 	Plan string `json:"plan"`
 	// StorageGB is the disk size in gigabytes for each node.
 	// +optional
@@ -42,6 +42,10 @@ type UpCloudNodeClassStatus struct {
 	// Conditions represent the latest available observations of the object's state.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// Hash is the resolved hash of the NodeClass spec, used by drift detection to
+	// compare the live configuration against the one a NodeClaim was provisioned with.
+	// +optional
+	Hash string `json:"hash,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -64,4 +68,3 @@ type UpCloudNodeClassList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []UpCloudNodeClass `json:"items"`
 }
-

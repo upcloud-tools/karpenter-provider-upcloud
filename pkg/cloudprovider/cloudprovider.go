@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/awslabs/operatorpkg/status"
@@ -15,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 
 	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
@@ -26,14 +27,22 @@ import (
 
 const providerPrefix = "upcloud:////"
 
+// defaultStorageGB is the root disk size used when UpCloudNodeClass.Spec.StorageGB is unset.
+const defaultStorageGB = 20
+
+// NodeClassDrifted is returned by IsDrifted when the live UpCloudNodeClass no longer matches
+// the configuration a NodeClaim was provisioned against.
+const NodeClassDrifted cloudprovider.DriftReason = "NodeClassDrifted"
+
 type UpCloudCloudProvider struct {
 	client.Client
-	kubernetesInterface kubernetes.Interface
+	kubernetesInterface  kubernetes.Interface
 	instanceProvider     *instance.Provider
 	userDataProvider     *userdata.Provider
 	instanceTypeProvider *instancetypes.Provider
 	zone                 string
 	clusterEndpoint      string
+	repairToleration     time.Duration
 }
 
 func NewCloudProvider(
@@ -44,15 +53,17 @@ func NewCloudProvider(
 	instanceTypeProvider *instancetypes.Provider,
 	zone string,
 	clusterEndpoint string,
+	repairToleration time.Duration,
 ) *UpCloudCloudProvider {
 	return &UpCloudCloudProvider{
 		Client:               kubeClient,
-		kubernetesInterface: kubeInterface,
+		kubernetesInterface:  kubeInterface,
 		instanceProvider:     instanceProvider,
 		userDataProvider:     userDataProvider,
 		instanceTypeProvider: instanceTypeProvider,
 		zone:                 zone,
 		clusterEndpoint:      clusterEndpoint,
+		repairToleration:     repairToleration,
 	}
 }
 
@@ -63,6 +74,17 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	}
 
 	serverName := fmt.Sprintf("karpenter-%s", strings.ReplaceAll(string(uuid.NewUUID()), "-", "")[:16])
+
+	// Karpenter records the selected instance type (the UpCloud plan) on the NodeClaim's instance-type requirement. 
+	// Use that when present to honour spot plans; fall back to NodeClass otherwise.
+	plan := nodeClass.Spec.Plan
+	if req := instanceTypeRequirement(nodeClaim); req != nil && len(req.Values) > 0 {
+		plan = req.Values[0]
+	}
+	capacityType := karpv1.CapacityTypeOnDemand
+	if isSpotPlan(plan) {
+		capacityType = karpv1.CapacityTypeSpot
+	}
 
 	caCertPEM, err := getCABundle(ctx, p.Client)
 	if err != nil {
@@ -77,14 +99,14 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	// Merge labels: topology (from zone) + instance-type info + nodeClass.Spec.Labels + nodeClaim.Labels
 	labels := lo.Assign(
 		map[string]string{
-			"topology.kubernetes.io/region":              p.zone,
-			"topology.kubernetes.io/zone":                p.zone,
-			"failure-domain.beta.kubernetes.io/region":   p.zone,
-			"failure-domain.beta.kubernetes.io/zone":     p.zone,
-			corev1.LabelInstanceTypeStable:               nodeClass.Spec.Plan,
-			corev1.LabelArchStable:                       "amd64",
-			corev1.LabelOSStable:                         "linux",
-			karpv1.CapacityTypeLabelKey:                  karpv1.CapacityTypeOnDemand,
+			"topology.kubernetes.io/region":            p.zone,
+			"topology.kubernetes.io/zone":              p.zone,
+			"failure-domain.beta.kubernetes.io/region": p.zone,
+			"failure-domain.beta.kubernetes.io/zone":   p.zone,
+			corev1.LabelInstanceTypeStable:             plan,
+			corev1.LabelArchStable:                     "amd64",
+			corev1.LabelOSStable:                       "linux",
+			karpv1.CapacityTypeLabelKey:                capacityType,
 		},
 		nodeClass.Spec.Labels,
 		nodeClaim.Labels,
@@ -98,18 +120,27 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	taints = append(taints, nodeClaim.Spec.Taints...)
 
 	userData, err := p.userDataProvider.Generate(&userdata.Options{
-		ClusterEndpoint:    p.clusterEndpoint,
-		CACertPEM:          caCertPEM,
-		KubeletClientCert:  certs.ClientCertPEM,
-		KubeletClientKey:   certs.ClientKeyPEM,
-		Labels:             labels,
-		Taints:             taints,
+		ClusterEndpoint:   p.clusterEndpoint,
+		CACertPEM:         caCertPEM,
+		KubeletClientCert: certs.ClientCertPEM,
+		KubeletClientKey:  certs.ClientKeyPEM,
+		Labels:            labels,
+		Taints:            taints,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generating userdata: %w", err)
 	}
 
-	server, err := p.instanceProvider.Create(ctx, serverName, nodeClass.Spec.Plan, p.zone, userData, labels)
+	storageGB := nodeClass.Spec.StorageGB
+	if storageGB <= 0 {
+		storageGB = defaultStorageGB
+	}
+	storageTier := string(nodeClass.Spec.StorageTier)
+	if storageTier == "" {
+		storageTier = string(upcloud.StorageTierStandard)
+	}
+
+	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, labels, storageGB, storageTier)
 	if err != nil {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("creating server: %w", err))
 	}
@@ -125,6 +156,9 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   serverName,
 			Labels: labels,
+			Annotations: map[string]string{
+				v1alpha1.NodeClassHashAnnotationKey: nodeClass.Hash(),
+			},
 		},
 		Spec: karpv1.NodeClaimSpec{
 			NodeClassRef: &karpv1.NodeClassReference{
@@ -195,6 +229,20 @@ func (p *UpCloudCloudProvider) GetInstanceTypes(ctx context.Context, nodePool *k
 }
 
 func (p *UpCloudCloudProvider) IsDrifted(ctx context.Context, nodeClaim *karpv1.NodeClaim) (cloudprovider.DriftReason, error) {
+	nodeClass, err := p.resolveNodeClass(ctx, nodeClaim)
+	if err != nil {
+		return "", cloudprovider.IgnoreNodeClaimNotFoundError(fmt.Errorf("resolving node class: %w", err))
+	}
+
+	// Nodes created before drift detection existed carry no hash annotation; don't disrupt them.
+	stored := nodeClaim.Annotations[v1alpha1.NodeClassHashAnnotationKey]
+	if stored == "" {
+		return "", nil
+	}
+
+	if stored != nodeClass.Hash() {
+		return NodeClassDrifted, nil
+	}
 	return "", nil
 }
 
@@ -210,6 +258,13 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 	}
 	allocatable := capacity.DeepCopy()
 
+	capacityType := karpv1.CapacityTypeOnDemand
+	for _, l := range server.Labels {
+		if l.Key == karpv1.CapacityTypeLabelKey {
+			capacityType = l.Value
+		}
+	}
+
 	return &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -217,7 +272,7 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 				corev1.LabelArchStable:         "amd64",
 				corev1.LabelOSStable:           "linux",
 				corev1.LabelTopologyZone:       zone,
-				karpv1.CapacityTypeLabelKey:    karpv1.CapacityTypeOnDemand,
+				karpv1.CapacityTypeLabelKey:    capacityType,
 			},
 		},
 		Status: karpv1.NodeClaimStatus{
@@ -235,13 +290,43 @@ func (p *UpCloudCloudProvider) GetSupportedNodeClasses() []status.Object {
 	}
 }
 
+// RepairPolicies tells Karpenter's node.health controller which Node conditions mark a node as unhealthy and how long to tolerate 
+// them before force-terminating and replacing the node. We watch the standard Ready condition: a node that is NotReady (False) or
+// Unknown (kubelet stopped reporting) for longer than repairToleration is recycled. Node termination (deletion timestamp set but not yet 
+// removed) is handled separately by Karpenter's built-in node.termination controller, so it is not listed here.
 func (p *UpCloudCloudProvider) RepairPolicies() []cloudprovider.RepairPolicy {
+	return []cloudprovider.RepairPolicy{
+		{
+			ConditionType:   corev1.NodeReady,
+			ConditionStatus: corev1.ConditionFalse,
+			TolerationDuration: p.repairToleration,
+		},
+		{
+			ConditionType:   corev1.NodeReady,
+			ConditionStatus: corev1.ConditionUnknown,
+			TolerationDuration: p.repairToleration,
+		},
+	}
+}
+
+// instanceTypeRequirement returns the instance-type requirement from the NodeClaim, if any.
+func instanceTypeRequirement(nc *karpv1.NodeClaim) *karpv1.NodeSelectorRequirementWithMinValues {
+	for i, r := range nc.Spec.Requirements {
+		if r.Key == corev1.LabelInstanceTypeStable {
+			return &nc.Spec.Requirements[i]
+		}
+	}
 	return nil
+}
+
+// isSpotPlan reports whether a plan name denotes a spot variant.
+func isSpotPlan(name string) bool {
+	return strings.Contains(strings.ToUpper(name), "SPOT")
 }
 
 func (p *UpCloudCloudProvider) resolveNodeClass(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha1.UpCloudNodeClass, error) {
 	nc := &v1alpha1.UpCloudNodeClass{}
-	if err := 	p.Client.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nc); err != nil {
+	if err := p.Client.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nc); err != nil {
 		return nil, err
 	}
 	return nc, nil

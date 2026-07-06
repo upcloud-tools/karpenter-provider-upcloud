@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,21 +15,23 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/scheduling"
 )
 
-
+// ResourceNvidiaGPU is the standard Kubernetes GPU resource. Advertising it on GPU instance
+// types lets Karpenter schedule pods that request nvidia.com/gpu.
+const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
 
 type Provider struct {
-	svc          service.Cloud
-	zone         string
-	mu           sync.RWMutex
+	svc                 service.Cloud
+	zone                string
+	mu                  sync.RWMutex
 	instanceTypesByName map[string]*cloudprovider.InstanceType
-	prices       map[string]float64
-	lastFetch    time.Time
-	cacheTTL     time.Duration
+	prices              map[string]float64
+	lastFetch           time.Time
+	cacheTTL            time.Duration
 }
 
 func NewProvider(svc service.Cloud, zone string) *Provider {
@@ -68,12 +71,23 @@ func (p *Provider) Refresh(ctx context.Context) error {
 
 	prices := pricing
 
+	// Each plan (on-demand and spot) is surfaced as its own instance type. Spot plans are distinguished from on-demand by their 
+	// capacity-type offering, which Karpenter selects via the karpenter.sh/capacity-type requirement.
 	built := make(map[string]*cloudprovider.InstanceType, len(plans.Plans))
+	scope := resolveScopeFromEnv()
+	excluded := 0
 	for _, plan := range plans.Plans {
+		if !scope.includes(plan) {
+			excluded++
+			continue
+		}
 		it := p.buildInstanceTypeWithPrices(plan, prices)
 		if it != nil {
 			built[plan.Name] = it
 		}
+	}
+	if excluded > 0 {
+		log.FromContext(ctx).V(1).Info("excluded plans outside configured scope", "excluded", excluded)
 	}
 
 	p.mu.Lock()
@@ -139,15 +153,27 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		corev1.ResourceMemory: *resource.NewQuantity(int64(plan.MemoryAmount)*1024*1024, resource.BinarySI),
 		corev1.ResourcePods:   *resource.NewQuantity(110, resource.DecimalSI),
 	}
+	// Surface GPU capacity so pods requesting nvidia.com/gpu can be scheduled.
+	// Karpenter treats any dot-namespaced resource as an accelerator automatically.
+	if plan.GPUAmount > 0 {
+		resources[ResourceNvidiaGPU] = *resource.NewQuantity(int64(plan.GPUAmount), resource.DecimalSI)
+	}
 
 	price := math.MaxFloat64
 	if p, ok := prices[plan.Name]; ok {
 		price = p
 	}
+
+	// Each plan is its own instance type. A spot plan (name contains "SPOT") gets a spot offering; otherwise on-demand.
+	// Karpenter selects between them via the capacity-type requirement, and passes the chosen plan name back through the NodeClaim.
+	capacityType := karpv1.CapacityTypeOnDemand
+	if isSpotPlan(plan.Name) {
+		capacityType = karpv1.CapacityTypeSpot
+	}
 	offerings := cloudprovider.Offerings{
 		{
 			Requirements: scheduling.NewRequirements(
-				scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
 			),
 			Price:     price,
 			Available: true,
@@ -159,7 +185,7 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
 		scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, string(corev1.Linux)),
 		scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, p.zone),
-		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
 	}
 
 	return &cloudprovider.InstanceType{
@@ -168,5 +194,54 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		Offerings:    offerings,
 		Capacity:     resources,
 		Overhead:     &cloudprovider.InstanceTypeOverhead{},
+	}
+}
+
+// Scope controls which UpCloud plans are surfaced as Karpenter instance types.
+// The default is CloudNative-first: CLOUDNATIVE and GPU plans are included, while STARTER and PREMIUM require an explicit opt-in.
+type Scope struct {
+	AllowStarter bool
+	AllowPremium bool
+}
+
+// resolveScopeFromEnv reads the instance-type scope from environment variables:
+//   - UPCLOUD_ALLOW_STARTER_PLANS: include STARTER plans
+//   - UPCLOUD_ALLOW_PREMIUM_PLANS: include PREMIUM plans
+func resolveScopeFromEnv() Scope {
+	return Scope{
+		AllowStarter: isTruthy(os.Getenv("UPCLOUD_ALLOW_STARTER_PLANS")),
+		AllowPremium: isTruthy(os.Getenv("UPCLOUD_ALLOW_PREMIUM_PLANS")),
+	}
+}
+
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+func isGPUPlan(p upcloud.Plan) bool         { return p.GPUAmount > 0 }
+func isCloudNativePlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "CLOUDNATIVE-") }
+func isStarterPlan(p upcloud.Plan) bool     { return strings.HasPrefix(p.Name, "STARTER-") }
+func isPremiumPlan(p upcloud.Plan) bool     { return strings.HasPrefix(p.Name, "PREMIUM-") }
+
+// isSpotPlan reports whether a plan name denotes a spot variant (UpCloud encodes spot in the plan name, e.g. "GPU-SPOT-8xCPU-64GB-1xL4").
+func isSpotPlan(name string) bool {
+	return strings.Contains(strings.ToUpper(name), "SPOT")
+}
+
+// includes reports whether a plan should be surfaced as an instance type under this scope.
+func (s Scope) includes(p upcloud.Plan) bool {
+	switch {
+	case isCloudNativePlan(p) || isGPUPlan(p):
+		return true
+	case isStarterPlan(p):
+		return s.AllowStarter
+	case isPremiumPlan(p):
+		return s.AllowPremium
+	default:
+		return false
 	}
 }
