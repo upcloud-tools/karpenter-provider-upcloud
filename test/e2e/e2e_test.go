@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -189,7 +190,9 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 			Labels:      map[string]string{"e2e-run": runID},
 		},
 	}
-	if err := kubeClient.Create(ctx, nodeclass); err != nil {
+	if err := retryOnHTTP2Error(ctx, func() error {
+		return kubeClient.Create(ctx, nodeclass)
+	}); err != nil {
 		t.Fatalf("creating nodeclass: %v", err)
 	}
 
@@ -199,7 +202,9 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 			_ = cp.Delete(context.WithoutCancel(ctx), created)
 		}
 		cleanupE2EServers(context.WithoutCancel(ctx), instanceProvider, runID)
-		_ = kubeClient.Delete(context.WithoutCancel(ctx), nodeclass)
+		_ = retryOnHTTP2Error(context.WithoutCancel(ctx), func() error {
+			return kubeClient.Delete(context.WithoutCancel(ctx), nodeclass)
+		})
 	}()
 
 	nodeClaim := &karpv1.NodeClaim{
@@ -250,6 +255,25 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	} else if got.Status.ProviderID != created.Status.ProviderID {
 		t.Errorf("Get returned mismatched providerID: got %q want %q", got.Status.ProviderID, created.Status.ProviderID)
 	}
+}
+
+// retryOnHTTP2Error retries fn on transient HTTP/2 connection errors using exponential backoff.
+func retryOnHTTP2Error(ctx context.Context, fn func() error) error {
+	var lastErr error
+	pollErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 20*time.Second, true, func(ctx context.Context) (bool, error) {
+		if err := fn(); err != nil {
+			if strings.Contains(err.Error(), "http2") {
+				lastErr = err
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		return lastErr
+	}
+	return nil
 }
 
 // cleanupE2EServers best-effort deletes any servers this run created (tagged with the e2e-run label),

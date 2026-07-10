@@ -96,17 +96,34 @@ func generateKubeletCert(ctx context.Context, kubeClient kubernetes.Interface, n
 	if err != nil {
 		return nil, fmt.Errorf("getting CSR for approval: %w", err)
 	}
-	// Approve the CSR ourselves since the operator's SA is not in the bootstrappers group
-	fresh.Status.Conditions = append(fresh.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-		Type:               certificatesv1.CertificateApproved,
-		Status:             corev1.ConditionTrue,
-		Reason:             "KarpenterAutoApproved",
-		Message:            "Auto-approved by Karpenter UpCloud provider",
-		LastUpdateTime:     metav1.Now(),
-		LastTransitionTime: metav1.Now(),
-	})
-	if _, err := kubeClient.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csrName, fresh, metav1.UpdateOptions{}); err != nil {
-		return nil, fmt.Errorf("approving CSR: %w", err)
+	// If an external controller (e.g. kube-controller-manager's csrapproving) already acted before we got here, 
+	// respect the existing decision.
+	alreadyApproved := false
+	alreadyDenied := false
+	for _, c := range fresh.Status.Conditions {
+		if c.Type == certificatesv1.CertificateApproved {
+			alreadyApproved = true
+		}
+		if c.Type == certificatesv1.CertificateDenied {
+			alreadyDenied = true
+		}
+	}
+	if alreadyDenied {
+		return nil, fmt.Errorf("CSR %s was denied", csrName)
+	}
+	if !alreadyApproved {
+		// Approve the CSR ourselves since the operator's SA is not in the bootstrappers group.
+		fresh.Status.Conditions = append(fresh.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
+			Type:               certificatesv1.CertificateApproved,
+			Status:             corev1.ConditionTrue,
+			Reason:             "KarpenterAutoApproved",
+			Message:            "Auto-approved by Karpenter UpCloud provider",
+			LastUpdateTime:     metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+		})
+		if _, err := kubeClient.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csrName, fresh, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("approving CSR: %w", err)
+		}
 	}
 
 	var signedCert []byte
