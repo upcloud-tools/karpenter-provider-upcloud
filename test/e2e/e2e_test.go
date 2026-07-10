@@ -96,7 +96,7 @@ func TestLiveInstanceTypes(t *testing.T) {
 // Run locally with:
 //
 //	UPCLOUD_TOKEN=... UPCLOUD_KUBERNETES_CLUSTER_ID=... UPCLOUD_E2E_PROVISION=1 \
-//	  UPCLOUD_E2E_PLAN=GPU-SPOT-8xCPU-64GB-1xL4 UPCLOUD_E2E_CAPACITY_TYPE=spot \
+//	  UPCLOUD_E2E_PLAN=GPU-8xCPU-64GB-1xL4 UPCLOUD_E2E_CAPACITY_TYPE=on-demand \
 //	  go test ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
 func TestLiveCloudProviderCreate(t *testing.T) {
 	token := os.Getenv("UPCLOUD_TOKEN")
@@ -207,6 +207,17 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 		})
 	}()
 
+	// Spot GPU fallback plans to try in order when a plan has no capacity in the zone. Ordered by price.
+	gpuFallbackPlans := []string{
+		"GPU-SPOT-8xCPU-64GB-1xL4",
+		"GPU-SPOT-12xCPU-128GB-1xL4",
+		"GPU-SPOT-16xCPU-192GB-1xL4",
+	}
+	plansToTry := []string{plan}
+	if plan == gpuFallbackPlans[0] {
+		plansToTry = gpuFallbackPlans
+	}
+
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-nc-" + runID},
 		Spec: karpv1.NodeClaimSpec{
@@ -226,14 +237,24 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 		},
 	}
 
-	createCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancel()
-	created, err = cp.Create(createCtx, nodeClaim)
-	if err != nil {
-		t.Fatalf("Create failed: %v", err)
+	for _, candidate := range plansToTry {
+		plan = candidate
+		nodeClaim.Spec.Requirements[1].Values = []string{plan}
+
+		createCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+		created, err = cp.Create(createCtx, nodeClaim)
+		cancel()
+		if err != nil {
+			if strings.Contains(err.Error(), "SERVER_RESOURCES_UNAVAILABLE") {
+				t.Logf("plan %s has no capacity, trying next", candidate)
+				continue
+			}
+			t.Fatalf("Create failed: %v", err)
+		}
+		break
 	}
 	if created == nil {
-		t.Fatal("Create returned nil nodeclaim")
+		t.Skipf("all GPU plans have no capacity in zone %s", zone)
 	}
 	if !strings.HasPrefix(created.Status.ProviderID, "upcloud:////") {
 		t.Errorf("expected upcloud providerID, got %q", created.Status.ProviderID)

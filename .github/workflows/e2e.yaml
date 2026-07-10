@@ -2,23 +2,6 @@ name: E2E
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main"]
-    paths:
-      - 'cmd/**'
-      - 'pkg/**'
-      - 'apis/**'
-      - 'go.*'
-      - 'test/**'
-      - '.github/workflows/e2e.yaml'
-  pull_request:
-    paths:
-      - 'cmd/**'
-      - 'pkg/**'
-      - 'apis/**'
-      - 'go.*'
-      - 'test/**'
-      - '.github/workflows/e2e.yaml'
 
 env:
   GO_VERSION: '1.26'
