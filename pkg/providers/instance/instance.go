@@ -17,12 +17,15 @@ const managedLabel = "karpenter.upcloud.com/managed"
 // Labels with keys outside this namespace that contain a slash are skipped because the UpCloud API rejects special characters in label keys.
 const upcloudLabelPrefix = "karpenter.upcloud.com/"
 
+// Provider manages the lifecycle of UpCloud servers (create, delete, get, list, stop).
+// Each server is cloned from a template storage device and attached to the cluster network.
 type Provider struct {
 	svc          service.Server
 	templateUUID string
 	networkUUID  string
 }
 
+// NewProvider creates a Provider that clones the given template storage onto each server and attaches it to the given cluster network.
 func NewProvider(svc service.Server, templateUUID, networkUUID string) *Provider {
 	return &Provider{
 		svc:          svc,
@@ -31,6 +34,9 @@ func NewProvider(svc service.Server, templateUUID, networkUUID string) *Provider
 	}
 }
 
+// Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects 
+// userdata (containing kubelet config and TLS certs), and applies labels (e.g. karpenter.upcloud.com/managed=true). 
+// Labels whose keys contain a slash outside the karpenter.upcloud.com/ namespace are silently dropped because the UpCloud API rejects them.
 func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storageGB int, storageTier string) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
@@ -92,18 +98,21 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 	return p.svc.CreateServer(ctx, createReq)
 }
 
+// Delete removes a server and all its attached storage volumes by UUID.
 func (p *Provider) Delete(ctx context.Context, serverUUID string) error {
 	return p.svc.DeleteServerAndStorages(ctx, &request.DeleteServerAndStoragesRequest{
 		UUID: serverUUID,
 	})
 }
 
+// Get returns server details by UUID.
 func (p *Provider) Get(ctx context.Context, serverUUID string) (*upcloud.ServerDetails, error) {
 	return p.svc.GetServerDetails(ctx, &request.GetServerDetailsRequest{
 		UUID: serverUUID,
 	})
 }
 
+// List returns all managed servers (those carrying the karpenter.upcloud.com/managed label).
 func (p *Provider) List(ctx context.Context) ([]upcloud.ServerDetails, error) {
 	servers, err := p.svc.GetServers(ctx)
 	if err != nil {
@@ -125,6 +134,7 @@ func (p *Provider) List(ctx context.Context) ([]upcloud.ServerDetails, error) {
 	return result, nil
 }
 
+// Stop performs a hard power-off of a server by UUID.
 func (p *Provider) Stop(ctx context.Context, serverUUID string) error {
 	_, err := p.svc.StopServer(ctx, &request.StopServerRequest{
 		UUID:     serverUUID,
@@ -134,6 +144,7 @@ func (p *Provider) Stop(ctx context.Context, serverUUID string) error {
 	return err
 }
 
+// WaitForStop blocks until the server reaches the stopped state.
 func (p *Provider) WaitForStop(ctx context.Context, serverUUID string) error {
 	_, err := p.svc.WaitForServerState(ctx, &request.WaitForServerStateRequest{
 		UUID:         serverUUID,
@@ -142,6 +153,7 @@ func (p *Provider) WaitForStop(ctx context.Context, serverUUID string) error {
 	return err
 }
 
+// isManaged checks whether a server carries the managed label.
 func isManaged(s upcloud.ServerDetails) bool {
 	for _, l := range s.Labels {
 		if l.Key == managedLabel && l.Value == "true" {

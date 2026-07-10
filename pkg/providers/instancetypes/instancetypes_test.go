@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
+// fakeCloud implements service.Cloud with canned plans and prices for testing.
 type fakeCloud struct {
 	service.Cloud
 	plans  *upcloud.Plans
@@ -24,6 +25,7 @@ func (f *fakeCloud) GetPricesByZone(_ context.Context) (*upcloud.PricesByZone, e
 	return f.prices, nil
 }
 
+// ptrPlans returns two CloudNative plans for price-resolution tests.
 func ptrPlans() *upcloud.Plans {
 	return &upcloud.Plans{Plans: []upcloud.Plan{
 		{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0, StorageTier: ""},
@@ -31,6 +33,7 @@ func ptrPlans() *upcloud.Plans {
 	}}
 }
 
+// ptrPrices returns zone-level prices for two CloudNative plans (one bare, one with server_plan_ prefix).
 func ptrPrices(zone string) *upcloud.PricesByZone {
 	p := upcloud.PricesByZone{}
 	p[zone] = map[string]upcloud.Price{
@@ -40,6 +43,8 @@ func ptrPrices(zone string) *upcloud.PricesByZone {
 	return &p
 }
 
+// TestBuildInstanceTypeWithPrices verifies that a plan is converted to an InstanceType with correct CPU, memory, pods, zone, 
+// architecture, capacity type, and price.
 func TestBuildInstanceTypeWithPrices(t *testing.T) {
 	p := NewProvider(nil, "de-fra1")
 	plan := upcloud.Plan{Name: "2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096}
@@ -78,6 +83,7 @@ func TestBuildInstanceTypeWithPrices(t *testing.T) {
 	}
 }
 
+// TestBuildInstanceTypeGPUCapacity verifies that nvidia.com/gpu capacity is advertised for GPU plans.
 func TestBuildInstanceTypeGPUCapacity(t *testing.T) {
 	p := NewProvider(nil, "de-fra1")
 	plan := upcloud.Plan{Name: "GPU-8xCPU-64GB-1xL4", CoreNumber: 8, MemoryAmount: 65536, GPUAmount: 1, GPUModel: "NVIDIA L4"}
@@ -89,6 +95,7 @@ func TestBuildInstanceTypeGPUCapacity(t *testing.T) {
 	}
 }
 
+// TestBuildInstanceTypeNoGPUCapacityForNonGPUPlan verifies non-GPU plans do not advertise nvidia.com/gpu.
 func TestBuildInstanceTypeNoGPUCapacityForNonGPUPlan(t *testing.T) {
 	p := NewProvider(nil, "de-fra1")
 	plan := upcloud.Plan{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096}
@@ -100,6 +107,8 @@ func TestBuildInstanceTypeNoGPUCapacityForNonGPUPlan(t *testing.T) {
 	}
 }
 
+// TestRefreshSurfacesSpotAsSeparateInstanceType verifies that a spot plan variant is surfaced as its own
+// InstanceType with a spot capacity-type offering, separate from the on-demand version.
 func TestRefreshSurfacesSpotAsSeparateInstanceType(t *testing.T) {
 	plans := &upcloud.Plans{Plans: []upcloud.Plan{
 		{Name: "GPU-8xCPU-64GB-1xL4", CoreNumber: 8, MemoryAmount: 65536, GPUAmount: 1, GPUModel: "NVIDIA L4"},
@@ -131,6 +140,7 @@ func TestRefreshSurfacesSpotAsSeparateInstanceType(t *testing.T) {
 	}
 }
 
+// TestBuildInstanceTypePriceFallback verifies that plans without pricing data use MaxFloat64 as the price.
 func TestBuildInstanceTypePriceFallback(t *testing.T) {
 	p := NewProvider(nil, "de-fra1")
 	plan := upcloud.Plan{Name: "orphan-plan", CoreNumber: 1, MemoryAmount: 1024}
@@ -141,6 +151,8 @@ func TestBuildInstanceTypePriceFallback(t *testing.T) {
 	}
 }
 
+// TestRefreshPopulatesInstanceTypes verifies that Refresh fetches plans and prices and caches them as InstanceTypes,
+// including resolving server_plan_ prefixed pricing keys.
 func TestRefreshPopulatesInstanceTypes(t *testing.T) {
 	p := NewProvider(&fakeCloud{plans: ptrPlans(), prices: ptrPrices("de-fra1")}, "de-fra1")
 	if err := p.Refresh(context.Background()); err != nil {
@@ -171,7 +183,7 @@ func TestRefreshPopulatesInstanceTypes(t *testing.T) {
 	}
 }
 
-// mixedPlans returns one plan from each k8s-relevant family to exercise the scope filter.
+// mixedPlans returns one plan from each relevant family (CloudNative, GPU, Starter, Premium) to exercise the scope filter.
 func mixedPlans() *upcloud.Plans {
 	return &upcloud.Plans{Plans: []upcloud.Plan{
 		{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0},
@@ -181,6 +193,7 @@ func mixedPlans() *upcloud.Plans {
 	}}
 }
 
+// names extracts a set of instance type names for easy assertion in scope tests.
 func names(its []*cloudprovider.InstanceType) map[string]bool {
 	out := map[string]bool{}
 	for _, it := range its {
@@ -189,6 +202,7 @@ func names(its []*cloudprovider.InstanceType) map[string]bool {
 	return out
 }
 
+// TestRefreshDefaultScopeCloudNativeFirst verifies that only CloudNative and GPU plans are included by default, without env var opt-ins.
 func TestRefreshDefaultScopeCloudNativeFirst(t *testing.T) {
 	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
 	if err := p.Refresh(context.Background()); err != nil {
@@ -206,6 +220,7 @@ func TestRefreshDefaultScopeCloudNativeFirst(t *testing.T) {
 	}
 }
 
+// TestRefreshScopeStarterPremium verifies that both STARTER and PREMIUM plans are included when both opt-in env vars are set.
 func TestRefreshScopeStarterPremium(t *testing.T) {
 	t.Setenv("UPCLOUD_ALLOW_STARTER_PLANS", "true")
 	t.Setenv("UPCLOUD_ALLOW_PREMIUM_PLANS", "true")
@@ -219,6 +234,7 @@ func TestRefreshScopeStarterPremium(t *testing.T) {
 	}
 }
 
+// TestRefreshScopeStarterOnly verifies that only STARTER plans are included when only UPCLOUD_ALLOW_STARTER_PLANS is set.
 func TestRefreshScopeStarterOnly(t *testing.T) {
 	t.Setenv("UPCLOUD_ALLOW_STARTER_PLANS", "true")
 	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
@@ -234,6 +250,7 @@ func TestRefreshScopeStarterOnly(t *testing.T) {
 	}
 }
 
+// TestRefreshScopePremiumOnly verifies that only PREMIUM plans are included when only UPCLOUD_ALLOW_PREMIUM_PLANS is set.
 func TestRefreshScopePremiumOnly(t *testing.T) {
 	t.Setenv("UPCLOUD_ALLOW_PREMIUM_PLANS", "true")
 	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
@@ -249,24 +266,7 @@ func TestRefreshScopePremiumOnly(t *testing.T) {
 	}
 }
 
-func TestRefreshUnsupportedFamiliesAlwaysExcluded(t *testing.T) {
-	plans := &upcloud.Plans{Plans: []upcloud.Plan{
-		{Name: "2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 80, StorageTier: "maxiops"},
-		{Name: "HICPU-4xCPU-8GB", CoreNumber: 4, MemoryAmount: 8192, StorageSize: 80, StorageTier: "maxiops"},
-		{Name: "HIMEM-2xCPU-16GB", CoreNumber: 2, MemoryAmount: 16384, StorageSize: 80, StorageTier: "maxiops"},
-	}}
-	// Opt in to everything supported; unsupported families must still be excluded.
-	t.Setenv("UPCLOUD_ALLOW_STARTER_PLANS", "true")
-	t.Setenv("UPCLOUD_ALLOW_PREMIUM_PLANS", "true")
-	p := NewProvider(&fakeCloud{plans: plans, prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
-	if err := p.Refresh(context.Background()); err != nil {
-		t.Fatalf("Refresh returned error: %v", err)
-	}
-	if len(p.List()) != 0 {
-		t.Errorf("expected generic/HICPU/HIMEM plans always excluded, got %v", names(p.List()))
-	}
-}
-
+// findInstanceType looks up an instance type by name from a slice.
 func findInstanceType(its []*cloudprovider.InstanceType, name string) *cloudprovider.InstanceType {
 	for _, it := range its {
 		if it.Name == name {

@@ -9,6 +9,7 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
 )
 
+// captureServer captures the CreateServerRequest for test assertions.
 type captureServer struct {
 	service.Server
 	gotReq *request.CreateServerRequest
@@ -21,6 +22,8 @@ func (c *captureServer) CreateServer(_ context.Context, r *request.CreateServerR
 	}, nil
 }
 
+// TestCreateSetsManagedLabelAndStorage verifies that the managed label is added, caller labels are forwarded,
+// and the default storage tier (standard) and size (20 GB) are applied.
 func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	srv := &captureServer{}
 	p := NewProvider(srv, "template-uuid", "network-uuid")
@@ -62,6 +65,7 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	}
 }
 
+// TestCreateUsesCustomStorage verifies that custom storage tier and size are forwarded to the CreateServer request.
 func TestCreateUsesCustomStorage(t *testing.T) {
 	srv := &captureServer{}
 	p := NewProvider(srv, "template-uuid", "network-uuid")
@@ -77,6 +81,7 @@ func TestCreateUsesCustomStorage(t *testing.T) {
 	}
 }
 
+// TestIsManaged verifies that servers with karpenter.upcloud.com/managed=true are detected as managed and servers without it are not.
 func TestIsManaged(t *testing.T) {
 	managed := upcloud.ServerDetails{Labels: upcloud.LabelSlice{{Key: managedLabel, Value: "true"}}}
 	if !isManaged(managed) {

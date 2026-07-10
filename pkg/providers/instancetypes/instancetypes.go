@@ -24,6 +24,7 @@ import (
 // types lets Karpenter schedule pods that request nvidia.com/gpu.
 const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
 
+// Provider caches UpCloud plans as Karpenter InstanceTypes, refreshed periodically from the UpCloud API.
 type Provider struct {
 	svc                 service.Cloud
 	zone                string
@@ -34,6 +35,7 @@ type Provider struct {
 	cacheTTL            time.Duration
 }
 
+// NewProvider creates a Provider with a 30-minute price cache TTL. Call Refresh before first use.
 func NewProvider(svc service.Cloud, zone string) *Provider {
 	return &Provider{
 		svc:                 svc,
@@ -44,12 +46,15 @@ func NewProvider(svc service.Cloud, zone string) *Provider {
 	}
 }
 
+// List returns all cached instance types. The list is empty until Refresh has been called at least once.
 func (p *Provider) List() []*cloudprovider.InstanceType {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return lo.Values(p.instanceTypesByName)
 }
 
+// Refresh fetches all plans and prices from the UpCloud API, filters them by the configured Scope (CloudNative-first by default), 
+// and caches each as a separate InstanceType. Spot plans are surfaced with a spot capacity-type offering; all others get on-demand.
 func (p *Provider) Refresh(ctx context.Context) error {
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("provider", "instancetypes"))
 
@@ -98,6 +103,8 @@ func (p *Provider) Refresh(ctx context.Context) error {
 	return nil
 }
 
+// refreshPrices fetches zone-level pricing from the API and caches it. The cache is refreshed at
+// most once per cacheTTL to avoid excessive API calls during instance-type reconciliation.
 func (p *Provider) refreshPrices(ctx context.Context) error {
 	if time.Since(p.lastFetch) < p.cacheTTL {
 		return nil
@@ -143,6 +150,8 @@ func (p *Provider) refreshPrices(ctx context.Context) error {
 	return nil
 }
 
+// buildInstanceTypeWithPrices converts an UpCloud plan into a Karpenter InstanceType with CPU, memory, pods, optional GPU, zone, 
+// capacity-type offerings, and pricing. Spot plans get a spot capacity-type offering; all others get on-demand.
 func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[string]float64) *cloudprovider.InstanceType {
 	resources := corev1.ResourceList{
 		corev1.ResourceCPU:    *resource.NewQuantity(int64(plan.CoreNumber), resource.DecimalSI),
@@ -210,6 +219,7 @@ func resolveScopeFromEnv() Scope {
 	}
 }
 
+// isTruthy interprets common truthy string values (1, true, yes, on) as boolean true.
 func isTruthy(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "1", "true", "yes", "on":
@@ -218,10 +228,17 @@ func isTruthy(v string) bool {
 	return false
 }
 
-func isGPUPlan(p upcloud.Plan) bool         { return p.GPUAmount > 0 }
+// isGPUPlan returns true for plans that include GPU accelerators.
+func isGPUPlan(p upcloud.Plan) bool { return p.GPUAmount > 0 }
+
+// isCloudNativePlan returns true for plans with the CLOUDNATIVE- prefix.
 func isCloudNativePlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "CLOUDNATIVE-") }
-func isStarterPlan(p upcloud.Plan) bool     { return strings.HasPrefix(p.Name, "STARTER-") }
-func isPremiumPlan(p upcloud.Plan) bool     { return strings.HasPrefix(p.Name, "PREMIUM-") }
+
+// isStarterPlan returns true for plans with the STARTER- prefix.
+func isStarterPlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "STARTER-") }
+
+// isPremiumPlan returns true for plans with the PREMIUM- prefix.
+func isPremiumPlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "PREMIUM-") }
 
 // isSpotPlan reports whether a plan name denotes a spot variant (UpCloud encodes spot in the plan name, e.g. "GPU-SPOT-8xCPU-64GB-1xL4").
 func isSpotPlan(name string) bool {
