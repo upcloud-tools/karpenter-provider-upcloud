@@ -293,7 +293,7 @@ func TestCreateSelectsSpotPlan(t *testing.T) {
 	cp, fakeSrv, _ := newTestProvider(t)
 
 	nc := newTestNodeClaim()
-	// Karpenter passes the selected instance type (the UpCloud plan) via the LabelInstanceTypeStable requirement. 
+	// Karpenter passes the selected instance type (the UpCloud plan) via the LabelInstanceTypeStable requirement.
 	// A plan name containing "SPOT" triggers spot capacity type.
 	nc.Spec.Requirements = []karpv1.NodeSelectorRequirementWithMinValues{
 		{
@@ -325,14 +325,13 @@ func TestCreateUsesNodeClassPlanWhenNoInstanceTypeRequirement(t *testing.T) {
 	nc := newTestNodeClaim()
 	nc.Spec.NodeClassRef.Name = "default"
 	// When Karpenter does not supply an instance-type requirement (LabelInstanceTypeStable),
-	// Create falls back to the NodeClass plan. Capacity-type enforcement is handled by
-	// Karpenter's scheduler, not the provider.
+	// Create falls back to the NodeClass plan. Capacity-type enforcement is handled by Karpenter's scheduler, not the provider.
 	stored := &apisv1alpha1.UpCloudNodeClass{}
 	if err := cp.Client.Get(context.Background(), types.NamespacedName{Name: "default"}, stored); err != nil {
 		t.Fatalf("getting nodeclass: %v", err)
 	}
 	stored.Spec.Plan = "CLOUDNATIVE-2xCPU-4GB"
-	if err := cp.Client.Update(context.Background(), stored); err != nil {
+	if err := cp.Update(context.Background(), stored); err != nil {
 		t.Fatalf("updating nodeclass: %v", err)
 	}
 

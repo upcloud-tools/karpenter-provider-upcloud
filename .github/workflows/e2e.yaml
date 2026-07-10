@@ -28,8 +28,6 @@ permissions:
 
 jobs:
   e2e:
-    # Only run when live credentials are configured as repo secrets.
-    if: ${{ secrets.UPCLOUD_TOKEN != '' && secrets.UPCLOUD_KUBERNETES_CLUSTER_ID != '' }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

@@ -71,7 +71,7 @@ func (p *Provider) Refresh(ctx context.Context) error {
 
 	prices := pricing
 
-	// Each plan (on-demand and spot) is surfaced as its own instance type. Spot plans are distinguished from on-demand by their 
+	// Each plan (on-demand and spot) is surfaced as its own instance type. Spot plans are distinguished from on-demand by their
 	// capacity-type offering, which Karpenter selects via the karpenter.sh/capacity-type requirement.
 	built := make(map[string]*cloudprovider.InstanceType, len(plans.Plans))
 	scope := resolveScopeFromEnv()
@@ -141,10 +141,6 @@ func (p *Provider) refreshPrices(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (p *Provider) buildInstanceType(plan upcloud.Plan) *cloudprovider.InstanceType {
-	return p.buildInstanceTypeWithPrices(plan, p.prices)
 }
 
 func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[string]float64) *cloudprovider.InstanceType {

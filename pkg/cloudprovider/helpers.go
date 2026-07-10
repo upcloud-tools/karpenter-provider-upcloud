@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -35,16 +34,6 @@ func getCABundle(ctx context.Context, c client.Client) (string, error) {
 	}
 
 	return caCert, nil
-}
-
-func getCABundleHash(ctx context.Context, c client.Client) (string, error) {
-	caCert, err := getCABundle(ctx, c)
-	if err != nil {
-		return "", err
-	}
-
-	hash := sha256.Sum256([]byte(caCert))
-	return fmt.Sprintf("%x", hash), nil
 }
 
 type kubeletCertBundle struct {

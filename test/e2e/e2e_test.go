@@ -80,7 +80,7 @@ func TestLiveInstanceTypes(t *testing.T) {
 	t.Logf("spot offerings present: %v", foundSpot)
 }
 
-// TestLiveCloudProviderCreate exercises the full cloudprovider.Create path against a real UpCloud cluster: it builds a real k8s client 
+// TestLiveCloudProviderCreate exercises the full cloudprovider.Create path against a real UpCloud cluster: it builds a real k8s client
 // from the cluster kubeconfig, creates an UpCloudNodeClass, and calls Create which performs kubelet cert generation (self-approved
 // CSR), userdata rendering, and the real CreateServer call. The created server is then discovered via Get and cleaned up.
 //

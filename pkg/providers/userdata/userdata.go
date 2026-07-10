@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/template"
 
-	corev1 "k8s.io/api/core/v1"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type Options struct {
@@ -32,9 +32,15 @@ func (p *Provider) Generate(opts *Options) (string, error) {
 	keyB64 := base64.StdEncoding.EncodeToString([]byte(opts.KubeletClientKey))
 
 	kubeletConfigBuf := &bytes.Buffer{}
-	template.Must(template.New("kubeletconfig").Parse(kubeletConfigTemplate)).Execute(kubeletConfigBuf, map[string]string{
-		"TaintsYAML": serializeTaintsYAML(opts.Taints),
-	})
+	taintsYAML, terr := serializeTaintsYAML(opts.Taints)
+	if terr != nil {
+		return "", fmt.Errorf("serializing taints: %w", terr)
+	}
+	if err := template.Must(template.New("kubeletconfig").Parse(kubeletConfigTemplate)).Execute(kubeletConfigBuf, map[string]string{
+		"TaintsYAML": taintsYAML,
+	}); err != nil {
+		return "", fmt.Errorf("executing kubeletconfig template: %w", err)
+	}
 	kubeletConfigIndented := indentLines(kubeletConfigBuf.String(), 6)
 
 	var buf bytes.Buffer
@@ -73,9 +79,9 @@ type taintsConfig struct {
 	RegisterWithTaints []taintEntry `yaml:"registerWithTaints"`
 }
 
-func serializeTaintsYAML(taints []corev1.Taint) string {
+func serializeTaintsYAML(taints []corev1.Taint) (string, error) {
 	if len(taints) == 0 {
-		return ""
+		return "", nil
 	}
 	entries := make([]taintEntry, len(taints))
 	for i, t := range taints {
@@ -84,9 +90,13 @@ func serializeTaintsYAML(taints []corev1.Taint) string {
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)
-	encoder.Encode(taintsConfig{RegisterWithTaints: entries})
-	encoder.Close()
-	return buf.String()
+	if err := encoder.Encode(taintsConfig{RegisterWithTaints: entries}); err != nil {
+		return "", err
+	}
+	if err := encoder.Close(); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 func indentLines(s string, spaces int) string {

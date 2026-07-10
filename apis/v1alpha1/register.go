@@ -1,10 +1,12 @@
 package v1alpha1
 
 import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -26,5 +28,7 @@ var (
 )
 
 func init() {
-	SchemeBuilder.AddToScheme(scheme.Scheme)
+	if err := SchemeBuilder.AddToScheme(scheme.Scheme); err != nil {
+		panic(fmt.Sprintf("adding UpCloudNodeClass to scheme: %v", err))
+	}
 }
