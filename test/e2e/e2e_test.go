@@ -96,7 +96,7 @@ func TestLiveInstanceTypes(t *testing.T) {
 // Run locally with:
 //
 //	UPCLOUD_TOKEN=... UPCLOUD_KUBERNETES_CLUSTER_ID=... UPCLOUD_E2E_PROVISION=1 \
-//	  UPCLOUD_E2E_PLAN=GPU-SPOT-4xCPU-8GB UPCLOUD_E2E_CAPACITY_TYPE=spot \
+//	  UPCLOUD_E2E_PLAN=GPU-SPOT-8xCPU-64GB-1xL4 UPCLOUD_E2E_CAPACITY_TYPE=spot \
 //	  go test ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
 func TestLiveCloudProviderCreate(t *testing.T) {
 	token := os.Getenv("UPCLOUD_TOKEN")

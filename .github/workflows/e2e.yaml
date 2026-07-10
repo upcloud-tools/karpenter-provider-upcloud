@@ -36,7 +36,7 @@ jobs:
           - capacityType: on-demand
             plan: CLOUDNATIVE-2xCPU-4GB
           - capacityType: spot
-            plan: GPU-SPOT-4xCPU-8GB
+            plan: GPU-SPOT-8xCPU-64GB-1xL4
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
