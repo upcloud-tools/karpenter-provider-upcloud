@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
@@ -11,6 +12,10 @@ import (
 )
 
 const managedLabel = "karpenter.upcloud.com/managed"
+
+// upcloudLabelPrefix is the allowed label namespace for UpCloud server labels.
+// Labels with keys outside this namespace that contain a slash are skipped because the UpCloud API rejects special characters in label keys.
+const upcloudLabelPrefix = "karpenter.upcloud.com/"
 
 type Provider struct {
 	svc          service.Server
@@ -34,6 +39,11 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 
 	labelSlice := &upcloud.LabelSlice{}
 	for k, v := range labels {
+		// UpCloud label keys cannot contain slashes; skip Kubernetes-internal labels (e.g. node.kubernetes.io/instance-type, 
+		// karpenter.sh/capacity-type) but keep the UpCloud provider's own labels (karpenter.upcloud.com/*).
+		if strings.Contains(k, "/") && !strings.HasPrefix(k, upcloudLabelPrefix) {
+			continue
+		}
 		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
 	}
 
@@ -45,11 +55,11 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 		Plan:     plan,
 		StorageDevices: request.CreateServerStorageDeviceSlice{
 			{
-			Action:  "clone",
-			Storage: p.templateUUID,
-			Title:   hostname + "-root",
-			Tier:    storageTier,
-			Size:    storageGB,
+				Action:  "clone",
+				Storage: p.templateUUID,
+				Title:   hostname + "-root",
+				Tier:    storageTier,
+				Size:    storageGB,
 			},
 		},
 		Networking: &request.CreateServerNetworking{

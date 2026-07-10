@@ -75,7 +75,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 
 	serverName := fmt.Sprintf("karpenter-%s", strings.ReplaceAll(string(uuid.NewUUID()), "-", "")[:16])
 
-	// Karpenter records the selected instance type (the UpCloud plan) on the NodeClaim's instance-type requirement. 
+	// Karpenter records the selected instance type (the UpCloud plan) on the NodeClaim's instance-type requirement.
 	// Use that when present to honour spot plans; fall back to NodeClass otherwise.
 	plan := nodeClass.Spec.Plan
 	if req := instanceTypeRequirement(nodeClaim); req != nil && len(req.Values) > 0 {
@@ -259,10 +259,8 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 	allocatable := capacity.DeepCopy()
 
 	capacityType := karpv1.CapacityTypeOnDemand
-	for _, l := range server.Labels {
-		if l.Key == karpv1.CapacityTypeLabelKey {
-			capacityType = l.Value
-		}
+	if isSpotPlan(server.Plan) {
+		capacityType = karpv1.CapacityTypeSpot
 	}
 
 	return &karpv1.NodeClaim{
@@ -290,20 +288,20 @@ func (p *UpCloudCloudProvider) GetSupportedNodeClasses() []status.Object {
 	}
 }
 
-// RepairPolicies tells Karpenter's node.health controller which Node conditions mark a node as unhealthy and how long to tolerate 
+// RepairPolicies tells Karpenter's node.health controller which Node conditions mark a node as unhealthy and how long to tolerate
 // them before force-terminating and replacing the node. We watch the standard Ready condition: a node that is NotReady (False) or
-// Unknown (kubelet stopped reporting) for longer than repairToleration is recycled. Node termination (deletion timestamp set but not yet 
+// Unknown (kubelet stopped reporting) for longer than repairToleration is recycled. Node termination (deletion timestamp set but not yet
 // removed) is handled separately by Karpenter's built-in node.termination controller, so it is not listed here.
 func (p *UpCloudCloudProvider) RepairPolicies() []cloudprovider.RepairPolicy {
 	return []cloudprovider.RepairPolicy{
 		{
-			ConditionType:   corev1.NodeReady,
-			ConditionStatus: corev1.ConditionFalse,
+			ConditionType:      corev1.NodeReady,
+			ConditionStatus:    corev1.ConditionFalse,
 			TolerationDuration: p.repairToleration,
 		},
 		{
-			ConditionType:   corev1.NodeReady,
-			ConditionStatus: corev1.ConditionUnknown,
+			ConditionType:      corev1.NodeReady,
+			ConditionStatus:    corev1.ConditionUnknown,
 			TolerationDuration: p.repairToleration,
 		},
 	}
