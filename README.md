@@ -10,7 +10,7 @@ Karpenter provider implementation for [UpCloud](https://upcloud.com), enabling e
 > drift detection, node repair, GPU scheduling, and spot capacity all work; broader end-to-end
 > coverage against live clusters is still being expanded.
 
-**Note** that the provider suffers from this upstream bug: https://github.com/kubernetes-sigs/karpenter/issues/3121. This results in n + 1 VM being started, so for one pod, two VMs will be started, for 2 pods, 3 VMs will be started, and so on. It's not a huge problem as the VM will be terminated when empty after the consolidation period. That means you'll pay 1h of that VM's cost even if it's not being used. As soon as a fix is available, I'll update this provider ASAP.
+**Note** that the provider suffers from this upstream bug: https://github.com/kubernetes-sigs/karpenter/issues/3121. This results in n + 1 VM being started, so for one pod, two VMs will be started, for 2 pods, 3 VMs will be started, and so on. The extra VM runs for its TTL duration (default 50m) before being cleaned up. As soon as a fix is available, I'll update this provider ASAP.
 
 ## How Karpenter Works
 
@@ -49,7 +49,7 @@ individual servers directly — the same approach every other Karpenter provider
 ```
                                      ┌───────────────────────────┐
                                      │     Kubernetes Cluster    │
-                                     │                           │
+                                     │      zone: de-fra1        │
                                      │  ┌─────────────────────┐  │
                                      │  │      Karpenter      │  │
                                      │  │   (this operator)   │  │
@@ -59,26 +59,26 @@ individual servers directly — the same approach every other Karpenter provider
                                      │  │  │ Token (Secret)│  │  │
                                      │  │  └───────┬───────┘  │  │
                                      │  └──────────┼──────────┘  │
-                                     └─────────────┼────────────┘
+                                     └─────────────┼─────────────┘
                                                    │
                               CreateServer/Delete  │  cloud-init
                               Server/ListServers   │  with kubeadm join
                                                    │
-                                     ┌─────────────▼──────────────┐
-                                     │      UpCloud API           │
-                                     │                            │
-                                     │  ┌──────────────────────┐  │
-                                     │  │  Server A            │  │
-                                     │  │  (kp-<uuid>)         │  │
-                                     │  │  plan: 2xCPU-4GB     │  │
-                                     │  │  zone: de-fra1       │  │
-                                     │  ├──────────────────────┤  │
-                                     │  │  Server B            │  │
-                                     │  │  (kp-<uuid>)         │  │
-                                     │  │  plan: 4xCPU-8GB     │  │
-                                     │  │  zone: fi-hel2       │  │
-                                     │  └──────────────────────┘  │
-                                     └────────────────────────────┘
+                                      ┌──────────────────────▼───────────────────────┐
+                                      │                 UpCloud API                  │
+                                      │                                              │
+                                      │  ┌────────────────────────────────────────┐  │
+                                      │  │  Server A                              │  │
+                                      │  │  (kp-<uuid>)                           │  │
+                                      │  │  plan: CLOUDNATIVE-2xCPU-4GB           │  │
+                                      │  │  zone: de-fra1                         │  │
+                                      │  ├────────────────────────────────────────┤  │
+                                      │  │  Server B                              │  │
+                                      │  │  (kp-<uuid>)                           │  │
+                                      │  │  plan: CLOUDNATIVE-4xCPU-8GB           │  │
+                                      │  │  zone: de-fra1                         │  │
+                                      │  └────────────────────────────────────────┘  │
+                                      └──────────────────────────────────────────────┘
 ```
 
 ### Core flow
