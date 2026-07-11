@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/client"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
@@ -14,6 +15,7 @@ import (
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/controllers/nodeclass"
+	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/controllers/nodeclaimttl"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider/overlay"
 	"sigs.k8s.io/karpenter/pkg/controllers"
@@ -24,6 +26,8 @@ import (
 	// Register UpCloudNodeClass types with the global scheme.
 	_ "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 )
+
+const defaultNodeClaimTTL = 50 * time.Minute
 
 func main() {
 	ctx := context.Background()
@@ -106,6 +110,22 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 	}
 	if err := ncController.SetupWithManager(op.Manager); err != nil {
 		return fmt.Errorf("setting up nodeclass controller: %w", err)
+	}
+
+	ttl := defaultNodeClaimTTL
+	if v := os.Getenv("UPCLOUD_NODECLAIM_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return fmt.Errorf("parsing UPCLOUD_NODECLAIM_TTL %q: %w", v, err)
+		}
+		ttl = d
+	}
+	ttlController := nodeclaimttl.Controller{
+		Client: op.GetClient(),
+		TTL:    ttl,
+	}
+	if err := ttlController.SetupWithManager(op.Manager); err != nil {
+		return fmt.Errorf("setting up nodeclaim TTL controller: %w", err)
 	}
 
 	op.WithControllers(ctxOp, controllerList...).Start(ctxOp)

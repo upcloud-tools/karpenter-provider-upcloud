@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.6] - 2026-07-11
+
+### Added
+- TTL-based disruption controller (`nodeclaimttl`) that replaces Karpenter's built-in `consolidateAfter`. At expiry the controller follows a three-way decision tree: (1) non-DS pods on the node → reset TTL, (2) node empty but a pending/unschedulable pod matches the node's instance type → reset TTL and reuse the node, (3) no match → add a `karpenter.upcloud.com/decommissioning:NoSchedule` taint then delete the NodeClaim. Configurable via `UPCLOUD_NODECLAIM_TTL` (default `50m`). This feature has been implemented to make maximum use of UpCloud's one hour billing cycle.
+- HTTP/2 connection retry in the UpCloud API service wrapper: transient connection drops are retried with exponential backoff via `wait.PollUntilContextTimeout`.
+
+### Changed
+- The `consolidateAfter` NodePool field is superseded by the TTL controller; example `nodepool.yaml` now sets `consolidationPolicy: Never`. Node lifetime from creation is at most the TTL duration (default 50m) unless the node is actively hosting non-DaemonSet pods or a matching pending pod can reuse it.
+- E2e GPU provisioning test now tries up to 4 spot GPU plans in price order when the primary plan reports `SERVER_RESOURCES_UNAVAILABLE`; if all are exhausted the test skips rather than fails.
+
+### Fixed
+- CSR approval: `helpers.go` now checks for existing `Approved`/`Denied` conditions before appending, avoiding `"duplicate Approved"` errors when `kube-controller-manager` auto-approves the CSR before the provider can.
+- Labels with `/` in the key are now filtered out when sent to the UpCloud API, except for `karpenter.upcloud.com/*` labels. Node capacity type is derived from the plan name (`isSpotPlan`) instead of server labels, fixing `KEY_INVALID` API errors on labels like `node.kubernetes.io/instance-type`.
+- Unchecked errors: `serializeTaintsYAML` returns `(string, error)`, kubeletconfig template `Execute` error is captured, `encoder.Encode`/`encoder.Close` errors are checked, `register.go` panics appropriately on `AddToScheme` failure.
+- All Go doc comments added/updated across instancetypes, instance, and TTL controller packages.
+
 ## [0.9.5] - 2026-07-08
 
 ### Added

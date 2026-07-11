@@ -17,5 +17,4 @@ spec:
             - "CLOUDNATIVE-4xCPU-8GB"
       expireAfter: 720h
   disruption:
-    consolidationPolicy: WhenEmpty
-    consolidateAfter: 55m # Upcloud charges per hour
+    consolidationPolicy: Never # TTL-based eviction handled by nodeclaim TTL controller
