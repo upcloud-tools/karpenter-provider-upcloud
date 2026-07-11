@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.26'
+  GO_VERSION: '1.26.5'
 
 permissions:
   contents: read
@@ -19,6 +19,7 @@ jobs:
           - capacityType: on-demand
             plan: CLOUDNATIVE-2xCPU-4GB
           - capacityType: spot
+            # Since spot capacity can be limited, we will try up to 3 plans
             plan: GPU-SPOT-8xCPU-64GB-1xL4
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
