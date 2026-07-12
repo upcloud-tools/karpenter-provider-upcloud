@@ -70,15 +70,15 @@ func node(name, plan string) *corev1.Node {
 	}
 }
 
-// pendingPod is a test helper that builds an unschedulable (pending, not assigned) pod with an optional instance-type nodeSelector.
-// When plan is empty the pod has no instance-type constraint.
+// pendingPod is a test helper that builds an unschedulable (pending, not assigned, reason Unschedulable) pod
+// with an optional instance-type nodeSelector. When plan is empty the pod has no instance-type constraint.
 func pendingPod(name, plan string) *corev1.Pod {
 	p := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodPending,
 			Conditions: []corev1.PodCondition{
-				{Type: corev1.PodScheduled, Status: corev1.ConditionFalse},
+				{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: "Unschedulable"},
 			},
 		},
 	}
@@ -178,6 +178,36 @@ func TestReuseForPendingPodNoConstraint(t *testing.T) {
 	}
 	if result.RequeueAfter != c.TTL {
 		t.Fatalf("expected TTL reset, got %v", result.RequeueAfter)
+	}
+}
+
+// TestSkipStuckPendingPod verifies that a pending pod with a reason other than Unschedulable (e.g. ErrImagePull)
+// does not keep the node alive — the node is decommissioned.
+func TestSkipStuckPendingPod(t *testing.T) {
+	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
+	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	stuck := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "stuck-pod"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			Conditions: []corev1.PodCondition{
+				{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: "ErrImagePull"},
+			},
+		},
+	}
+	c := newController(t, nc, n, stuck)
+
+	result, err := reconcileOnce(t, c, "nc1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Fatalf("expected deletion for stuck pending pod, got requeue after %v", result.RequeueAfter)
+	}
+
+	got := &karpv1.NodeClaim{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "nc1"}, got); err == nil {
+		t.Fatal("expected NodeClaim to be deleted when pending pod is stuck")
 	}
 }
 
