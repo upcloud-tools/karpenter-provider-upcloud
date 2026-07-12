@@ -27,3 +27,8 @@ test:
 .PHONY: build
 build:
 	go build -o bin/karpenter-upcloud ./cmd/karpenter-upcloud
+
+.PHONY: cleanup
+cleanup:
+	upctl server list | awk '$$2 ~ /^karpenter/ {print $$1}' | xargs -r upctl server stop --type hard
+	upctl server list | awk '$$5 == "stopped" {print $$1}' | xargs -r upctl server delete --delete-storages
