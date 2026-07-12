@@ -26,16 +26,17 @@ import (
 //  3. Node is empty and no matching pending pod → add a NoSchedule taint and delete the NodeClaim.
 type Controller struct {
 	client.Client
-	// TTL is the absolute maximum lifetime for a NodeClaim from creation (or last reset).
 	TTL time.Duration
 }
 
+// Reconcile is the main reconciliation loop for the NodeClaim TTL controller.
 func (c *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	nc := &karpv1.NodeClaim{}
 	if err := c.Get(ctx, req.NamespacedName, nc); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// If the NodeClaim is being deleted or has no node assigned, exit early.
 	if !nc.DeletionTimestamp.IsZero() || nc.Status.NodeName == "" {
 		return reconcile.Result{}, nil
 	}
@@ -75,8 +76,7 @@ func (c *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if err := c.Delete(ctx, nc); err != nil {
 		return reconcile.Result{}, fmt.Errorf("deleting NodeClaim: %w", err)
 	}
-	log.FromContext(ctx).Info("TTL expired, node drained, deleted NodeClaim",
-		"node", nc.Status.NodeName)
+	log.FromContext(ctx).Info("TTL expired, tainted and deleted NodeClaim", "node", nc.Status.NodeName)
 	return reconcile.Result{}, nil
 }
 
@@ -92,7 +92,7 @@ func (c *Controller) resetTTL(ctx context.Context, nc *karpv1.NodeClaim, reason 
 	if err := c.Patch(ctx, nc, patch); err != nil {
 		return reconcile.Result{}, fmt.Errorf("patching TTL reset: %w", err)
 	}
-	log.FromContext(ctx).Info("TTL expired, "+reason, "node", nc.Status.NodeName, "ttl", c.TTL)
+	log.FromContext(ctx).Info("TTL reset, "+reason, "node", nc.Status.NodeName, "ttl", c.TTL)
 	return reconcile.Result{RequeueAfter: c.TTL}, nil
 }
 
