@@ -222,6 +222,11 @@ make build     # compile binary
 make container-build  # build OCI image via buildah
 ```
 
+## Credits
+
+- **UpCloud Ltd** — Sponsors the test infrastructure used for integration and e2e testing.
+- **Zed Industries** — Provides a free version of their editor.
+
 ## License
 
 EUPL 1.2 — see [LICENSE](LICENSE).
