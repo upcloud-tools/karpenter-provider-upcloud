@@ -65,7 +65,7 @@ func (c *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// Path 2 – node is empty but a pending pod (reason Unschedulable) could reuse it.
-	if hasMatchingPendingPod(podList.Items, instancePlan(node)) {
+	if hasMatchingPendingPod(podList.Items, node) {
 		return c.resetTTL(ctx, nc, "matching pending pod found, reusing node")
 	}
 
@@ -120,22 +120,24 @@ func hasNonDSPods(pods []corev1.Pod, nodeName string) bool {
 }
 
 // hasMatchingPendingPod returns true when there is a pending (unschedulable) pod whose instance-type
-// requirements are compatible with plan.
-func hasMatchingPendingPod(pods []corev1.Pod, plan string) bool {
+// requirements are compatible with the node's plan and whose tolerations accept the node's taints.
+func hasMatchingPendingPod(pods []corev1.Pod, node *corev1.Node) bool {
+	plan := instancePlan(node)
 	for i := range pods {
 		p := &pods[i]
-		if isMatchingPending(p, plan) {
+		if isMatchingPending(p, plan, node.Spec.Taints) {
 			return true
 		}
 	}
 	return false
 }
 
-// isMatchingPending returns true when the pod is pending with reason Unschedulable (the scheduler couldn't find a fitting node)
-// and its instance-type requirements are compatible with plan. A pod stuck for another reason (e.g. ErrImagePull, CrashLoopBackOff)
-// is not considered matching because it wouldn't make progress even if scheduled to this node.
+// isMatchingPending returns true when the pod is pending with reason Unschedulable (the scheduler couldn't find a fitting node),
+// its instance-type requirements are compatible with plan, and it tolerates the node's taints.
+// A pod stuck for another reason (e.g. ErrImagePull, CrashLoopBackOff) is not considered matching
+// because it wouldn't make progress even if scheduled to this node.
 // A pod without any instance-type constraint is considered matching because it can be scheduled on this node.
-func isMatchingPending(pod *corev1.Pod, plan string) bool {
+func isMatchingPending(pod *corev1.Pod, plan string, taints []corev1.Taint) bool {
 	if pod.Status.Phase != corev1.PodPending || pod.Spec.NodeName != "" {
 		return false
 	}
@@ -150,7 +152,47 @@ func isMatchingPending(pod *corev1.Pod, plan string) bool {
 			return false // stuck on something other than node availability
 		}
 	}
-	return podFitsInstanceType(pod, plan)
+	if !podFitsInstanceType(pod, plan) {
+		return false
+	}
+	if !podToleratesNodeTaints(pod, taints) {
+		return false
+	}
+	return true
+}
+
+// podToleratesNodeTaints returns true when the pod's tolerations satisfy all NoSchedule and NoExecute
+// taints on the node. PreferNoSchedule taints are treated as soft preferences and ignored.
+func podToleratesNodeTaints(pod *corev1.Pod, taints []corev1.Taint) bool {
+	for _, taint := range taints {
+		if taint.Effect != corev1.TaintEffectNoSchedule && taint.Effect != corev1.TaintEffectNoExecute {
+			continue
+		}
+		if !tolerationMatches(taint, pod.Spec.Tolerations) {
+			return false
+		}
+	}
+	return true
+}
+
+// tolerationMatches returns true when at least one toleration covers the given taint, following k8s toleration semantics:
+// key match (empty key matches all), effect match (empty matches all), and value match based on operator (Exists or Equal).
+func tolerationMatches(taint corev1.Taint, tolerations []corev1.Toleration) bool {
+	for _, t := range tolerations {
+		if t.Key != "" && t.Key != taint.Key {
+			continue
+		}
+		if t.Effect != "" && t.Effect != taint.Effect {
+			continue
+		}
+		if t.Operator == corev1.TolerationOpExists {
+			return true
+		}
+		if t.Value == taint.Value {
+			return true
+		}
+	}
+	return false
 }
 
 // podFitsInstanceType checks whether the pod's nodeSelector and node affinity allow the given plan (node.kubernetes.io/instance-type).

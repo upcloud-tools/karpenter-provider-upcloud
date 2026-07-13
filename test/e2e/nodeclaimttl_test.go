@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,9 +17,8 @@ import (
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
-// TestLiveNodeClaimTTL_Path3_Decommission verifies that a NodeClaim whose TTL has
-// expired on an empty node (no active pods, no matching pending pod) gets the
-// decommissioning taint applied and the NodeClaim deleted.
+// TestLiveNodeClaimTTL_Path3_Decommission verifies that a NodeClaim whose TTL has expired on an empty node
+// (no active pods, no matching pending pod) gets the decommissioning taint applied and the NodeClaim deleted.
 func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
@@ -34,19 +35,21 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 	}
 
 	finalNC := &karpv1.NodeClaim{}
-	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, finalNC); kclient.IgnoreNotFound(err) != nil {
-		t.Fatalf("getting NodeClaim after reconcile: %v", err)
-	} else if kclient.IgnoreNotFound(err) == nil {
+	getErr := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, finalNC)
+	if kclient.IgnoreNotFound(getErr) != nil {
+		require.NoError(t, getErr, "getting NodeClaim after reconcile")
+	} else if kclient.IgnoreNotFound(getErr) == nil {
 		t.Logf("NodeClaim fully deleted")
 	} else if !finalNC.DeletionTimestamp.IsZero() {
 		t.Logf("NodeClaim has deletion timestamp")
 	} else {
-		t.Errorf("expected NodeClaim to be deleted or have deletion timestamp")
+		assert.Fail(t, "expected NodeClaim to be deleted or have deletion timestamp")
 	}
 
 	finalNode := &corev1.Node{}
-	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, finalNode); err != nil {
-		t.Logf("node %s no longer exists: %v", srv.nodeName, err)
+	nodeErr := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, finalNode)
+	if nodeErr != nil {
+		t.Logf("node %s no longer exists: %v", srv.nodeName, nodeErr)
 	} else {
 		hasTaint := false
 		for _, taint := range finalNode.Spec.Taints {
@@ -55,15 +58,12 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 				break
 			}
 		}
-		if !hasTaint {
-			t.Errorf("expected decommissioning taint on node %s", srv.nodeName)
-		}
+		assert.True(t, hasTaint, "expected decommissioning taint on node %s", srv.nodeName)
 	}
 }
 
-// TestLiveNodeClaimTTL_Path2_Reuse verifies that a NodeClaim whose TTL has expired
-// on an empty node is kept alive when a pending Unschedulable pod matching the
-// node's instance type and taint tolerations exists (reuse path).
+// TestLiveNodeClaimTTL_Path2_Reuse verifies that a NodeClaim whose TTL has expired on an empty node is kept alive when a pending
+// Unschedulable pod matching the node's instance type and taint tolerations exists (reuse path).
 func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
@@ -87,9 +87,7 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 			}},
 		},
 	}
-	if err := env.kubeClient.Create(env.ctx, pendingPod); err != nil {
-		t.Fatalf("creating pending pod: %v", err)
-	}
+	require.NoError(t, env.kubeClient.Create(env.ctx, pendingPod), "creating pending pod")
 	t.Cleanup(func() {
 		_ = env.kubeClient.Delete(context.WithoutCancel(env.ctx), pendingPod)
 	})
@@ -101,37 +99,29 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	env.patchTTLToExpire(t, srv.ncK8sName)
 
 	result := env.reconcileTTL(t, srv.ncK8sName)
-	if result.RequeueAfter == 0 {
-		node := &corev1.Node{}
-		if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, node); err == nil {
-			t.Logf("node instance-type label: %q", node.Labels[corev1.LabelInstanceTypeStable])
-			t.Logf("node taints: %v", node.Spec.Taints)
-		}
-		env.dumpPendingPods(t)
-		t.Fatalf("expected TTL reset for matching pending pod (requeueAfter>0), got 0")
+	require.NotZero(t, result.RequeueAfter, "expected TTL reset for matching pending pod (requeueAfter>0)")
+	node := &corev1.Node{}
+	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, node); err == nil {
+		t.Logf("node instance-type label: %q", node.Labels[corev1.LabelInstanceTypeStable])
+		t.Logf("node taints: %v", node.Spec.Taints)
 	}
+	env.dumpPendingPods(t)
 
 	nc := &karpv1.NodeClaim{}
-	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc); err != nil {
-		t.Fatalf("getting NodeClaim after reset: %v", err)
-	}
+	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
+
 	resetAt, ok := nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]
-	if !ok {
-		t.Fatalf("expected TTL reset annotation")
-	}
+	require.True(t, ok, "expected TTL reset annotation")
+
 	resetTime, err := time.Parse(time.RFC3339, resetAt)
-	if err != nil {
-		t.Fatalf("invalid reset timestamp: %v", err)
-	}
-	if time.Since(resetTime) > 30*time.Second {
-		t.Fatalf("reset timestamp too old: %s", resetAt)
-	}
+	require.NoError(t, err, "invalid reset timestamp: %s", resetAt)
+
+	require.Greater(t, 30*time.Second, time.Since(resetTime), "reset timestamp too old: %s", resetAt)
 	t.Logf("TTL reset at %s — path 2 confirmed", resetAt)
 }
 
-// TestLiveNodeClaimTTL_Path1_Reset verifies that a NodeClaim whose TTL has expired
-// on a node that still hosts non-DaemonSet pods gets its timer reset (busy node
-// path).
+// TestLiveNodeClaimTTL_Path1_Reset verifies that a NodeClaim whose TTL has expired on a node that still hosts non-DaemonSet
+// pods gets its timer reset (busy node path).
 func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
@@ -143,24 +133,17 @@ func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 	env.patchTTLToExpire(t, srv.ncK8sName)
 
 	result := env.reconcileTTL(t, srv.ncK8sName)
-	if result.RequeueAfter == 0 {
-		t.Fatalf("expected TTL reset for busy node (requeueAfter>0), got 0")
-	}
+	require.NotZero(t, result.RequeueAfter, "expected TTL reset for busy node (requeueAfter>0)")
 
 	nc := &karpv1.NodeClaim{}
-	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc); err != nil {
-		t.Fatalf("getting NodeClaim after reset: %v", err)
-	}
+	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
+
 	resetAt, ok := nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]
-	if !ok {
-		t.Fatalf("expected TTL reset annotation")
-	}
+	require.True(t, ok, "expected TTL reset annotation")
+
 	resetTime, err := time.Parse(time.RFC3339, resetAt)
-	if err != nil {
-		t.Fatalf("invalid reset timestamp: %v", err)
-	}
-	if time.Since(resetTime) > 30*time.Second {
-		t.Fatalf("reset timestamp too old: %s", resetAt)
-	}
+	require.NoError(t, err, "invalid reset timestamp: %s", resetAt)
+
+	require.Greater(t, 30*time.Second, time.Since(resetTime), "reset timestamp too old: %s", resetAt)
 	t.Logf("TTL reset at %s — path 1 confirmed", resetAt)
 }
