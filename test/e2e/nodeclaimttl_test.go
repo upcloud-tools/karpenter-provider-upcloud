@@ -1,3 +1,5 @@
+//go:build e2e
+
 package e2e
 
 import (
@@ -36,14 +38,12 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 
 	finalNC := &karpv1.NodeClaim{}
 	getErr := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, finalNC)
-	if kclient.IgnoreNotFound(getErr) != nil {
-		require.NoError(t, getErr, "getting NodeClaim after reconcile")
-	} else if kclient.IgnoreNotFound(getErr) == nil {
-		t.Logf("NodeClaim fully deleted")
-	} else if !finalNC.DeletionTimestamp.IsZero() {
+	if getErr == nil {
+		require.False(t, finalNC.DeletionTimestamp.IsZero(), "expected deletion timestamp")
 		t.Logf("NodeClaim has deletion timestamp")
 	} else {
-		assert.Fail(t, "expected NodeClaim to be deleted or have deletion timestamp")
+		require.True(t, kclient.IgnoreNotFound(getErr) == nil, "unexpected error: %v", getErr)
+		t.Logf("NodeClaim fully deleted")
 	}
 
 	finalNode := &corev1.Node{}
@@ -94,18 +94,55 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	env.waitForUnschedulablePod(t, pendingPod.Name)
 
 	env.waitForNodeLabel(t, srv.nodeName, corev1.LabelInstanceTypeStable)
-	env.dumpPendingPods(t)
+	if env.debug {
+		env.dumpPendingPods(t)
+	}
+
+	// Pre-reconcile diagnostics (only when UPCLOUD_E2E_DEBUG=1): capture the exact node + pod state the controller will see.
+	if env.debug {
+		preNode := &corev1.Node{}
+		if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, preNode); err == nil {
+			t.Logf("[debug] pre-reconcile node instance-type label: %q", preNode.Labels[corev1.LabelInstanceTypeStable])
+			t.Logf("[debug] pre-reconcile node taints: %v", preNode.Spec.Taints)
+		} else {
+			t.Logf("[debug] pre-reconcile node get error: %v", err)
+		}
+		prePod := &corev1.Pod{}
+		if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: pendingPod.Name, Namespace: "default"}, prePod); err == nil {
+			for _, c := range prePod.Status.Conditions {
+				t.Logf("[debug] pre-reconcile pending pod condition: Type=%s Status=%s Reason=%q Message=%q", c.Type, c.Status, c.Reason, c.Message)
+			}
+			t.Logf("[debug] pre-reconcile pending pod NodeSelector: %v", prePod.Spec.NodeSelector)
+			t.Logf("[debug] pre-reconcile pending pod Tolerations: %v", prePod.Spec.Tolerations)
+		} else {
+			t.Logf("[debug] pre-reconcile pending pod get error: %v", err)
+		}
+	}
 
 	env.patchTTLToExpire(t, srv.ncK8sName)
 
 	result := env.reconcileTTL(t, srv.ncK8sName)
-	require.NotZero(t, result.RequeueAfter, "expected TTL reset for matching pending pod (requeueAfter>0)")
-	node := &corev1.Node{}
-	if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, node); err == nil {
-		t.Logf("node instance-type label: %q", node.Labels[corev1.LabelInstanceTypeStable])
-		t.Logf("node taints: %v", node.Spec.Taints)
+	if result.RequeueAfter == 0 {
+		// Post-reconcile diagnostics (only when UPCLOUD_E2E_DEBUG=1): re-fetch the test pod and node to see what the controller saw.
+		if env.debug {
+			node := &corev1.Node{}
+			if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.nodeName}, node); err == nil {
+				t.Logf("[debug] post-reconcile node instance-type label: %q", node.Labels[corev1.LabelInstanceTypeStable])
+				t.Logf("[debug] post-reconcile node taints: %v", node.Spec.Taints)
+			}
+			pod := &corev1.Pod{}
+			if err := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: pendingPod.Name, Namespace: "default"}, pod); err == nil {
+				t.Logf("[debug] post-reconcile pending pod phase=%s nodeName=%q", pod.Status.Phase, pod.Spec.NodeName)
+				for _, c := range pod.Status.Conditions {
+					t.Logf("[debug] post-reconcile pending pod condition: Type=%s Status=%s Reason=%q Message=%q", c.Type, c.Status, c.Reason, c.Message)
+				}
+			} else {
+				t.Logf("[debug] post-reconcile pending pod get error: %v", err)
+			}
+			env.dumpPendingPods(t)
+		}
+		t.Fatalf("expected TTL reset for matching pending pod (requeueAfter>0), got 0")
 	}
-	env.dumpPendingPods(t)
 
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")

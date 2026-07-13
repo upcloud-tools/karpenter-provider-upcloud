@@ -1,3 +1,5 @@
+//go:build e2e
+
 package e2e
 
 import (
@@ -45,6 +47,7 @@ type e2eTestEnv struct {
 	instanceProvider *instance.Provider
 	runID            string
 	zone             string
+	debug            bool
 }
 
 // newE2ETestEnv creates a new e2eTestEnv with the cloud provider and Kubernetes clients.
@@ -108,6 +111,7 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 		instanceProvider: instanceProvider,
 		runID:            fmt.Sprintf("%d", time.Now().UnixNano()),
 		zone:             cluster.Zone,
+		debug:            os.Getenv("UPCLOUD_E2E_DEBUG") == "1",
 	}
 }
 
@@ -233,7 +237,7 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	require.NoError(t, env.kubeClient.Status().Update(env.ctx, createNC), "updating NodeClaim status")
 	t.Logf("provisioned server %s (nc=%s, node=%s)", created.Status.ProviderID, createNC.Name, created.Status.NodeName)
 
-	env.waitForNode(t, created.Status.NodeName)
+	env.waitForNodeClean(t, created.Status.NodeName)
 
 	return &e2eServer{
 		nodeClaim:     created,
@@ -265,7 +269,7 @@ func (env *e2eTestEnv) waitForNodeLabel(t *testing.T, nodeName, labelKey string)
 func (env *e2eTestEnv) waitForNode(t *testing.T, nodeName string) {
 	t.Helper()
 	t.Logf("waiting for node %s to appear...", nodeName)
-	
+
 	if err := wait.PollUntilContextTimeout(env.ctx, 5*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 		node := &corev1.Node{}
 		if err := env.kubeClient.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
@@ -275,6 +279,62 @@ func (env *e2eTestEnv) waitForNode(t *testing.T, nodeName string) {
 	}); err != nil {
 		require.NoError(t, err, "timed out waiting for node %s", nodeName)
 	}
+}
+
+// startupTaintKeys are well-known taint keys that the kubelet and node-lifecycle controllers set on any new node during bootstrapping.
+// We wait for them to clear before tests proceed, so the controller doesn't reject a pending pod for not tolerating a transient startup taint.
+var startupTaintKeys = []string{
+	"karpenter.sh/unregistered",
+	"node.cilium.io/agent-not-ready",
+	"node.kubernetes.io/not-ready",
+	"node.kubernetes.io/unreachable",
+}
+
+// waitForNodeClean waits for a node to register and reach Ready, then waits up to 3 minutes for startup taints to clear.
+// If the startup taints don't clear within that window but the node is Ready, it proceeds anyway. This avoids hanging in environments
+// where a node-controller or CNI isn't actively removing taints.
+func (env *e2eTestEnv) waitForNodeClean(t *testing.T, nodeName string) {
+	t.Helper()
+	env.waitForNode(t, nodeName)
+	t.Logf("waiting for node %s to be clean (ready + no startup taints)...", nodeName)
+
+	const startupTaintWait = 3 * time.Minute
+	start := time.Now()
+
+	require.NoError(t, wait.PollUntilContextTimeout(env.ctx, 5*time.Second, 8*time.Minute, true, func(ctx context.Context) (bool, error) {
+		node := &corev1.Node{}
+		if err := env.kubeClient.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
+			return false, nil
+		}
+		if !nodeReady(node) {
+			return false, nil
+		}
+		if time.Since(start) > startupTaintWait {
+			// Grace period expired — accept Ready even if startup taints remain.
+			return true, nil
+		}
+		for _, taint := range node.Spec.Taints {
+			for _, key := range startupTaintKeys {
+				if taint.Key == key {
+					if env.debug {
+						t.Logf("node %s still has startup taint %s (%.0fs into grace period)", nodeName, taint.Key, time.Since(start).Seconds())
+					}
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	}), "timed out waiting for node %s to become Ready", nodeName)
+}
+
+// nodeReady reports whether the node has the NodeReady condition set to True.
+func nodeReady(node *corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 // waitForUnschedulablePod blocks until the pod has PodScheduled=False with Reason=Unschedulable set by the scheduler.

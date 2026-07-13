@@ -119,8 +119,8 @@ func hasNonDSPods(pods []corev1.Pod, nodeName string) bool {
 	return false
 }
 
-// hasMatchingPendingPod returns true when there is a pending (unschedulable) pod whose instance-type
-// requirements are compatible with the node's plan and whose tolerations accept the node's taints.
+// hasMatchingPendingPod returns true when there is a pending (unschedulable) pod whose instance-type requirements are compatible
+// with the node's plan and whose tolerations accept the node's taints.
 func hasMatchingPendingPod(pods []corev1.Pod, node *corev1.Node) bool {
 	plan := instancePlan(node)
 	for i := range pods {
@@ -133,9 +133,8 @@ func hasMatchingPendingPod(pods []corev1.Pod, node *corev1.Node) bool {
 }
 
 // isMatchingPending returns true when the pod is pending with reason Unschedulable (the scheduler couldn't find a fitting node),
-// its instance-type requirements are compatible with plan, and it tolerates the node's taints.
-// A pod stuck for another reason (e.g. ErrImagePull, CrashLoopBackOff) is not considered matching
-// because it wouldn't make progress even if scheduled to this node.
+// its instance-type requirements are compatible with plan, and it tolerates the node's taints. A pod stuck for another reason
+// (e.g. ErrImagePull, CrashLoopBackOff) is not considered matching because it wouldn't make progress even if scheduled to this node.
 // A pod without any instance-type constraint is considered matching because it can be scheduled on this node.
 func isMatchingPending(pod *corev1.Pod, plan string, taints []corev1.Taint) bool {
 	if pod.Status.Phase != corev1.PodPending || pod.Spec.NodeName != "" {
@@ -161,8 +160,8 @@ func isMatchingPending(pod *corev1.Pod, plan string, taints []corev1.Taint) bool
 	return true
 }
 
-// podToleratesNodeTaints returns true when the pod's tolerations satisfy all NoSchedule and NoExecute
-// taints on the node. PreferNoSchedule taints are treated as soft preferences and ignored.
+// podToleratesNodeTaints returns true when the pod's tolerations satisfy all NoSchedule and NoExecute taints on the node.
+// PreferNoSchedule taints are treated as soft preferences and ignored.
 func podToleratesNodeTaints(pod *corev1.Pod, taints []corev1.Taint) bool {
 	for _, taint := range taints {
 		if taint.Effect != corev1.TaintEffectNoSchedule && taint.Effect != corev1.TaintEffectNoExecute {
@@ -228,8 +227,7 @@ func podFitsInstanceType(pod *corev1.Pod, plan string) bool {
 				return true
 			}
 		}
-		// If every term rejected the plan, the pod doesn't fit.
-		// If there were no terms at all (all skipped via !found), fall through.
+		// If every term rejected the plan, the pod doesn't fit. If there were no terms at all (all skipped via !found), fall through.
 		if aff.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms != nil {
 			hasConstrainingTerm := false
 			for _, term := range aff.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
