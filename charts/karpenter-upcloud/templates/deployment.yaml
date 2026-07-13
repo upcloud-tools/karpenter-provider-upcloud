@@ -35,6 +35,12 @@ spec:
             - name: UPCLOUD_TEMPLATE_UUID
               value: {{ .Values.templateUUID }}
             {{- end }}
+            {{- if .Values.nodeclaimTTL.enabled }}
+            - name: UPCLOUD_NODECLAIM_TTL_ENABLED
+              value: "true"
+            - name: UPCLOUD_NODECLAIM_TTL
+              value: {{ .Values.nodeclaimTTL.ttl | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{ end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

@@ -19,6 +19,8 @@ import (
 
 // Controller implements an absolute-lifetime TTL eviction controller for NodeClaims.
 // It replaces Karpenter's built-in consolidateAfter behaviour.
+// This controller is opt-in and only registers when UPCLOUD_NODECLAIM_TTL_ENABLED=true is set.
+// When enabled, NodePool disruption.consolidationPolicy should be set to Never to avoid double-disruption.
 //
 // When the TTL expires the controller follows a three-way decision tree:
 //  1. Node has non-DaemonSet pods → reset the TTL (node is still busy).
