@@ -3,7 +3,7 @@ module github.com/upcloud-tools/karpenter-provider-upcloud
 go 1.26.4
 
 require (
-	github.com/UpCloudLtd/upcloud-go-api/v8 v8.38.0
+	github.com/UpCloudLtd/upcloud-go-api/v8 v8.39.0
 	github.com/awslabs/operatorpkg v0.0.0-20260501204335-c49b4ca8d58d
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
@@ -17,6 +17,7 @@ require (
 )
 
 require (
+	github.com/UpCloudLtd/httplog v0.0.0-20260624214043-23b0cab8e085 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
