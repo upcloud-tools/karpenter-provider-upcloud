@@ -1,6 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: gomod
+    commit-message:
+      prefix: chore(deps)
     directory: /
     schedule:
       interval: daily
@@ -8,17 +10,39 @@ updates:
       kubernetes:
         patterns:
           - k8s.io/*
+      grpc:
+        patterns:
+          - google.golang.org/grpc
+          - google.golang.org/genproto
 
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: github-actions
     commit-message:
       prefix: chore(actions)
-    directory: "/"
+    directory: /
     schedule:
       interval: weekly
       day: monday
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
 
-  - package-ecosystem: "devcontainers"
-    directory: "/"
+  - package-ecosystem: docker
+    directory: /cmd/karpenter-upcloud
     schedule:
       interval: weekly
       day: monday
+    groups:
+      docker:
+        patterns:
+          - "*"
+
+  - package-ecosystem: devcontainers # https://containers.dev/guide/dependabot
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      devcontainers:
+        patterns:
+          - "*"

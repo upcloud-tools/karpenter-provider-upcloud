@@ -112,20 +112,23 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 		return fmt.Errorf("setting up nodeclass controller: %w", err)
 	}
 
-	ttl := defaultNodeClaimTTL
-	if v := os.Getenv("UPCLOUD_NODECLAIM_TTL"); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return fmt.Errorf("parsing UPCLOUD_NODECLAIM_TTL %q: %w", v, err)
+	if os.Getenv("UPCLOUD_NODECLAIM_TTL_ENABLED") == "true" {
+		ttl := defaultNodeClaimTTL
+		if v := os.Getenv("UPCLOUD_NODECLAIM_TTL"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return fmt.Errorf("parsing UPCLOUD_NODECLAIM_TTL %q: %w", v, err)
+			}
+			ttl = d
 		}
-		ttl = d
-	}
-	ttlController := nodeclaimttl.Controller{
-		Client: op.GetClient(),
-		TTL:    ttl,
-	}
-	if err := ttlController.SetupWithManager(op.Manager); err != nil {
-		return fmt.Errorf("setting up nodeclaim TTL controller: %w", err)
+		ttlController := nodeclaimttl.Controller{
+			Client: op.GetClient(),
+			TTL:    ttl,
+		}
+		if err := ttlController.SetupWithManager(op.Manager); err != nil {
+			return fmt.Errorf("setting up nodeclaim TTL controller: %w", err)
+		}
+		op.GetLogger().Info("nodeclaim TTL controller enabled", "TTL", ttl)
 	}
 
 	op.WithControllers(ctxOp, controllerList...).Start(ctxOp)

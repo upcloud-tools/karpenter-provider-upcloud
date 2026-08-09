@@ -17,4 +17,5 @@ spec:
             - "CLOUDNATIVE-4xCPU-8GB"
       expireAfter: 720h
   disruption:
-    consolidationPolicy: Never # TTL-based eviction handled by nodeclaim TTL controller
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 50m

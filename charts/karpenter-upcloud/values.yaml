@@ -26,6 +26,10 @@ resources:
     cpu: 500m
     memory: 256Mi
 
+nodeclaimTTL:
+  enabled: false
+  ttl: 50m
+
 extraEnv: []
 
 podLabels: {}

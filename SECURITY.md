@@ -15,7 +15,7 @@ Please report vulnerabilities privately via GitHub's **Private vulnerability rep
 2. Click **Report a vulnerability**
 3. Fill in the details
 
-You can expect an acknowledgment within 72 hours for urgent or critical issues, and we'll work with you
+You can expect an acknowledgment within a reasonable time for urgent or critical issues, and we'll work with you
 to understand the scope and impact. Once a fix is ready, we'll publish a
 security advisory and credit the reporter (unless anonymity is requested).
 

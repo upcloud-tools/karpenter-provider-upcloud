@@ -2,9 +2,21 @@ name: E2E tests
 
 on:
   workflow_dispatch:
+    inputs:
+      nodeclaimttl-tests:
+        type: choice
+        description: Run node claim TTL tests
+        default: 'no'
+        options:
+          - 'yes'
+          - 'no'
 
 env:
   GO_VERSION: '1.26.5'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -22,9 +34,9 @@ jobs:
             # Since spot capacity can be limited, we will try up to 3 plans
             plan: GPU-SPOT-8xCPU-64GB-1xL4
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -35,4 +47,14 @@ jobs:
           UPCLOUD_E2E_PROVISION: "1"
           UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
           UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
-        run: go test ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
+        run: go test -tags e2e ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
+
+      - name: Node claim TTL e2e (${{ matrix.capacityType }})
+        if: ${{ github.event.inputs.nodeclaimttl-tests == 'yes' }}
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+          UPCLOUD_E2E_PROVISION: "1"
+          UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
+          UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
+        run: go test -tags e2e ./test/e2e/ -run TestLiveNodeClaimTTL -v -timeout 20m

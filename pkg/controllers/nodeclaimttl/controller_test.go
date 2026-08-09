@@ -18,6 +18,8 @@ import (
 	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 )
 
+const defaultCloudNativePlan = "CLOUDNATIVE-2xCPU-4GB"
+
 // newScheme returns a scheme that knows about core types and karpv1.NodeClaim.
 func newScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -122,7 +124,7 @@ func TestRequeueBeforeTTL(t *testing.T) {
 func TestDeleteEmptyNode(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
 	dsPod := pod("ds1", "node1", true)
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	c := newController(t, nc, dsPod, n)
 
 	result, err := reconcileOnce(t, c, "nc1")
@@ -143,8 +145,39 @@ func TestDeleteEmptyNode(t *testing.T) {
 // instance type, the TTL is reset (node reused).
 func TestReuseForMatchingPendingPod(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
-	pp := pendingPod("pending-pod", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
+	pp := pendingPod("pending-pod", defaultCloudNativePlan)
+	c := newController(t, nc, n, pp)
+
+	result, err := reconcileOnce(t, c, "nc1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != c.TTL {
+		t.Fatalf("expected TTL reset (requeue after %v), got %v", c.TTL, result.RequeueAfter)
+	}
+
+	got := &karpv1.NodeClaim{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "nc1"}, got); err != nil {
+		t.Fatalf("get after reconcile: %v", err)
+	}
+	if got.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey] == "" {
+		t.Fatal("expected TTL reset annotation for pending pod reuse")
+	}
+}
+
+// TestReuseForPendingPodToleratesTaint verifies that a pending Unschedulable pod matching the instance type
+// AND tolerating node taints keeps the node alive (reuse).
+func TestReuseForPendingPodToleratesTaint(t *testing.T) {
+	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
+	n := node("node1", defaultCloudNativePlan)
+	n.Spec.Taints = []corev1.Taint{
+		{Key: "custom-taint", Effect: corev1.TaintEffectNoSchedule},
+	}
+	pp := pendingPod("pending-pod", defaultCloudNativePlan)
+	pp.Spec.Tolerations = []corev1.Toleration{
+		{Key: "custom-taint", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+	}
 	c := newController(t, nc, n, pp)
 
 	result, err := reconcileOnce(t, c, "nc1")
@@ -168,7 +201,7 @@ func TestReuseForMatchingPendingPod(t *testing.T) {
 // alive (it can be scheduled here).
 func TestReuseForPendingPodNoConstraint(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	pp := pendingPod("pending-pod", "") // no instance-type constraint
 	c := newController(t, nc, n, pp)
 
@@ -185,7 +218,7 @@ func TestReuseForPendingPodNoConstraint(t *testing.T) {
 // does not keep the node alive — the node is decommissioned.
 func TestSkipStuckPendingPod(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	stuck := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "stuck-pod"},
 		Status: corev1.PodStatus{
@@ -211,10 +244,35 @@ func TestSkipStuckPendingPod(t *testing.T) {
 	}
 }
 
+// TestSkipPendingPodBlockedByTaint verifies that a pending Unschedulable pod matching the instance type
+// but not tolerating a node taint is NOT reused — the node is decommissioned.
+func TestSkipPendingPodBlockedByTaint(t *testing.T) {
+	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
+	n := node("node1", defaultCloudNativePlan)
+	n.Spec.Taints = []corev1.Taint{
+		{Key: "custom-taint", Effect: corev1.TaintEffectNoSchedule},
+	}
+	pp := pendingPod("pending-pod", defaultCloudNativePlan)
+	c := newController(t, nc, n, pp)
+
+	result, err := reconcileOnce(t, c, "nc1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Fatalf("expected deletion when pending pod doesn't tolerate node taint, got requeue after %v", result.RequeueAfter)
+	}
+
+	got := &karpv1.NodeClaim{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "nc1"}, got); err == nil {
+		t.Fatal("expected NodeClaim to be deleted when pending pod doesn't tolerate node taint")
+	}
+}
+
 // TestDeleteWhenPendingPodMismatch verifies that the node is decommissioned when the only pending pod requests a different instance type.
 func TestDeleteWhenPendingPodMismatch(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	pp := pendingPod("pending-pod", "CLOUDNATIVE-4xCPU-8GB")
 	c := newController(t, nc, n, pp)
 
@@ -284,7 +342,7 @@ func TestResetRespectedOnNextReconcile(t *testing.T) {
 // TestTaintAddedBeforeDelete verifies that the controller adds the decommissioning NoSchedule taint before deleting the NodeClaim.
 func TestTaintAddedBeforeDelete(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	dsPod := pod("ds1", "node1", true)
 	c := newController(t, nc, n, dsPod)
 
@@ -313,7 +371,7 @@ func TestTaintAddedBeforeDelete(t *testing.T) {
 // TestDaemonSetPodsIgnored verifies that DaemonSet-owned pods are not counted as non-DS pods, so the node is still considered empty.
 func TestDaemonSetPodsIgnored(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	dsPod := pod("ds1", "node1", true)
 	c := newController(t, nc, n, dsPod)
 
@@ -363,7 +421,7 @@ func TestSkipNoNodeName(t *testing.T) {
 // are treated as empty and do not prevent TTL expiry.
 func TestIgnoreTerminatingPods(t *testing.T) {
 	nc := nodeClaim("nc1", "node1", nil, time.Now().Add(-10*time.Minute))
-	n := node("node1", "CLOUDNATIVE-2xCPU-4GB")
+	n := node("node1", defaultCloudNativePlan)
 	appPod := pod("app1", "node1", false)
 	appPod.Finalizers = []string{"some/finalizer"}
 	now := metav1.Now()
