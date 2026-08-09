@@ -13,6 +13,10 @@ on:
 env:
   GO_VERSION: '1.26.5'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
