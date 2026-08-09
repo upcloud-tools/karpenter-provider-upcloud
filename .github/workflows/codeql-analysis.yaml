@@ -57,14 +57,14 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/init@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: ${{ matrix.language }}
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/autobuild@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
+        uses: github/codeql-action/autobuild@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/analyze@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: "/language:${{ matrix.language }}"
