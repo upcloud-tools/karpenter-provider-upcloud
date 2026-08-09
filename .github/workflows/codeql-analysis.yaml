@@ -37,7 +37,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -48,19 +48,19 @@ jobs:
               - '.github/workflows/codeql-analysis.yaml'
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        uses: github/codeql-action/init@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
         with:
           languages: ${{ matrix.language }}
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/autobuild@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        uses: github/codeql-action/autobuild@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
 
       - if: steps.filter.outputs.go == 'true' || github.event_name != 'pull_request'
-        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        uses: github/codeql-action/analyze@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
         with:
           category: "/language:${{ matrix.language }}"
