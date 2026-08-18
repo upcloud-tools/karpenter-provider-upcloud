@@ -93,7 +93,7 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 		templateUUID = defaultTemplateUUID
 	}
 
-	instanceProvider := instance.NewProvider(svc, templateUUID, networkUUID)
+	instanceProvider := instance.NewProvider(svc, templateUUID, networkUUID, clusterID, cluster.Name)
 	itProvider := instancetypes.NewProvider(svc, cluster.Zone)
 	require.NoError(t, itProvider.Refresh(ctx), "refreshing instance types")
 
