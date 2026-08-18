@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/karpenter/pkg/controllers"
 	"sigs.k8s.io/karpenter/pkg/controllers/state"
 	"sigs.k8s.io/karpenter/pkg/operator"
+	"sigs.k8s.io/karpenter/pkg/state/prediction"
 	"sigs.k8s.io/yaml"
 
 	// Register UpCloudNodeClass types with the global scheme.
@@ -77,7 +78,7 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 		return fmt.Errorf("refreshing instance types: %w", err)
 	}
 
-	instanceProvider := instance.NewProvider(svc, storageUUID, cluster.Network)
+	instanceProvider := instance.NewProvider(svc, storageUUID, cluster.Network, opts.ClusterUUID, cluster.Name)
 	userDataProvider := userdata.NewProvider()
 	cp := cloudprovider.NewCloudProvider(
 		op.GetClient(),
@@ -92,6 +93,7 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 
 	decCp := overlay.Decorate(cp, op.GetClient(), op.InstanceTypeStore)
 	clusterState := state.NewCluster(op.Clock, op.GetClient(), decCp)
+	predictionStore := prediction.NewStore()
 
 	controllerList := controllers.NewControllers(
 		ctxOp,
@@ -103,6 +105,7 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 		cp,
 		clusterState,
 		op.InstanceTypeStore,
+		predictionStore,
 	)
 
 	ncController := nodeclass.Controller{

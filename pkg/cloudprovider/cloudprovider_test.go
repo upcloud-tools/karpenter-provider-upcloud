@@ -150,7 +150,7 @@ func newTestProvider(t *testing.T) (*UpCloudCloudProvider, *fakeServer, client.C
 	})
 
 	fakeSrv := &fakeServer{servers: map[string]*upcloud.ServerDetails{}}
-	instanceProvider := instance.NewProvider(fakeSrv, "template-uuid", "network-uuid")
+	instanceProvider := instance.NewProvider(fakeSrv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
 	userDataProvider := userdata.NewProvider()
 
 	itProvider := instancetypes.NewProvider(
@@ -276,7 +276,7 @@ func TestCreate(t *testing.T) {
 	}
 	found := false
 	for _, l := range *fakeSrv.lastReq.Labels {
-		if l.Key == "karpenter.upcloud.com/managed" && l.Value == "true" {
+		if l.Key == "managed_by" && l.Value == "karpenter" {
 			found = true
 		}
 	}

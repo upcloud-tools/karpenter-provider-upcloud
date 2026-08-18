@@ -26,7 +26,7 @@ func (c *captureServer) CreateServer(_ context.Context, r *request.CreateServerR
 // and the default storage tier (standard) and size (20 GB) are applied.
 func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	srv := &captureServer{}
-	p := NewProvider(srv, "template-uuid", "network-uuid")
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
 
 	_, err := p.Create(context.Background(), "karpenter-abc", "4xCPU-8GB", "de-fra1", "#cloud-config", map[string]string{"team": "ai"}, 20, string(upcloud.StorageTierStandard))
 	if err != nil {
@@ -38,21 +38,43 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	if srv.gotReq.Labels == nil {
 		t.Fatal("expected labels on CreateServerRequest")
 	}
+	
 	foundManaged := false
 	foundTeam := false
+	foundClusterID := false
+	foundClusterName := false
+	foundGeneratedName := false
 	for _, l := range *srv.gotReq.Labels {
-		if l.Key == managedLabel && l.Value == "true" {
+		if l.Key == managedLabelKey && l.Value == managedLabelValue {
 			foundManaged = true
 		}
 		if l.Key == "team" && l.Value == "ai" {
 			foundTeam = true
 		}
+		if l.Key == "capu_cluster_id" && l.Value == "cluster-uuid" {
+			foundClusterID = true
+		}
+		if l.Key == "capu_cluster_name" && l.Value == "cluster-name" {
+			foundClusterName = true
+		}
+		if l.Key == "capu_generated_name" && l.Value == "karpenter-abc" {
+			foundGeneratedName = true
+		}
 	}
 	if !foundManaged {
-		t.Errorf("expected managed=%s label on created server", "true")
+		t.Errorf("expected managed_by=%s label on created server", managedLabelValue)
 	}
 	if !foundTeam {
 		t.Errorf("expected caller-provided labels to be forwarded to the server")
+	}
+	if !foundClusterID {
+		t.Errorf("expected capu_cluster_id label on created server")
+	}
+	if !foundClusterName {
+		t.Errorf("expected capu_cluster_name label on created server")
+	}
+	if !foundGeneratedName {
+		t.Errorf("expected capu_generated_name label on created server")
 	}
 	if len(srv.gotReq.StorageDevices) != 1 {
 		t.Errorf("expected one storage device, got %d", len(srv.gotReq.StorageDevices))
@@ -68,7 +90,7 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 // TestCreateUsesCustomStorage verifies that custom storage tier and size are forwarded to the CreateServer request.
 func TestCreateUsesCustomStorage(t *testing.T) {
 	srv := &captureServer{}
-	p := NewProvider(srv, "template-uuid", "network-uuid")
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
 
 	if _, err := p.Create(context.Background(), "karpenter-xyz", "GPU-8xCPU-64GB-1xL4", "de-fra1", "#cloud-config", nil, 100, string(upcloud.StorageTierMaxIOPS)); err != nil {
 		t.Fatalf("Create error: %v", err)
@@ -81,9 +103,9 @@ func TestCreateUsesCustomStorage(t *testing.T) {
 	}
 }
 
-// TestIsManaged verifies that servers with karpenter.upcloud.com/managed=true are detected as managed and servers without it are not.
+// TestIsManaged verifies that servers with the managed label are detected as managed and servers without it are not.
 func TestIsManaged(t *testing.T) {
-	managed := upcloud.ServerDetails{Labels: upcloud.LabelSlice{{Key: managedLabel, Value: "true"}}}
+	managed := upcloud.ServerDetails{Labels: upcloud.LabelSlice{{Key: managedLabelKey, Value: managedLabelValue}}}
 	if !isManaged(managed) {
 		t.Errorf("expected managed server to be detected")
 	}

@@ -47,7 +47,7 @@ func TestGenerateNodeLabels(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Generate returned error: %v", err)
 		}
-		if !strings.Contains(out, `NODE_LABELS="topology.kubernetes.io/zone=de-fra1,custom=yes"`) {
+		if !strings.Contains(out, `NODE_LABELS="custom=yes,topology.kubernetes.io/zone=de-fra1"`) {
 			t.Errorf("expected NODE_LABELS assignment with comma-joined labels, got:\n%s", out)
 		}
 		if !strings.Contains(out, "--node-labels=$NODE_LABELS") {

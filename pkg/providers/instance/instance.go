@@ -11,11 +11,8 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
 )
 
-const managedLabel = "karpenter.upcloud.com/managed"
-
-// upcloudLabelPrefix is the allowed label namespace for UpCloud server labels.
-// Labels with keys outside this namespace that contain a slash are skipped because the UpCloud API rejects special characters in label keys.
-const upcloudLabelPrefix = "karpenter.upcloud.com/"
+const managedLabelKey = "managed_by"
+const managedLabelValue = "karpenter"
 
 // Provider manages the lifecycle of UpCloud servers (create, delete, get, list, stop).
 // Each server is cloned from a template storage device and attached to the cluster network.
@@ -23,31 +20,37 @@ type Provider struct {
 	svc          service.Server
 	templateUUID string
 	networkUUID  string
+	clusterID    string
+	clusterName  string
 }
 
 // NewProvider creates a Provider that clones the given template storage onto each server and attaches it to the given cluster network.
-func NewProvider(svc service.Server, templateUUID, networkUUID string) *Provider {
+func NewProvider(svc service.Server, templateUUID, networkUUID, clusterID, clusterName string) *Provider {
 	return &Provider{
 		svc:          svc,
 		templateUUID: templateUUID,
 		networkUUID:  networkUUID,
+		clusterID:    clusterID,
+		clusterName:  clusterName,
 	}
 }
 
-// Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects 
-// userdata (containing kubelet config and TLS certs), and applies labels (e.g. karpenter.upcloud.com/managed=true). 
-// Labels whose keys contain a slash outside the karpenter.upcloud.com/ namespace are silently dropped because the UpCloud API rejects them.
+// Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects
+// userdata (containing kubelet config and TLS certs), and applies the managed marker label.
 func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storageGB int, storageTier string) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	labels[managedLabel] = "true"
+	labels[managedLabelKey] = managedLabelValue
+	labels["capu_cluster_id"] = p.clusterID
+	labels["capu_cluster_name"] = p.clusterName
+	labels["capu_generated_name"] = hostname
 
 	labelSlice := &upcloud.LabelSlice{}
 	for k, v := range labels {
-		// UpCloud label keys cannot contain slashes; skip Kubernetes-internal labels (e.g. node.kubernetes.io/instance-type, 
-		// karpenter.sh/capacity-type) but keep the UpCloud provider's own labels (karpenter.upcloud.com/*).
-		if strings.Contains(k, "/") && !strings.HasPrefix(k, upcloudLabelPrefix) {
+		// UpCloud label keys cannot contain slashes or dots. Kubernetes-internal labels (e.g. node.kubernetes.io/instance-type,
+		// karpenter.sh/capacity-type, karpenter.upcloud.com/upcloudnodeclass) all fail that rule, so drop them.
+		if strings.ContainsAny(k, "/.") {
 			continue
 		}
 		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
@@ -95,7 +98,8 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 		Metadata: upcloud.True,
 	}
 
-	return p.svc.CreateServer(ctx, createReq)
+	server, err := p.svc.CreateServer(ctx, createReq)
+	return server, err
 }
 
 // Delete removes a server and all its attached storage volumes by UUID.
@@ -112,7 +116,7 @@ func (p *Provider) Get(ctx context.Context, serverUUID string) (*upcloud.ServerD
 	})
 }
 
-// List returns all managed servers (those carrying the karpenter.upcloud.com/managed label).
+// List returns all managed servers (those carrying our managed label).
 func (p *Provider) List(ctx context.Context) ([]upcloud.ServerDetails, error) {
 	servers, err := p.svc.GetServers(ctx)
 	if err != nil {
@@ -156,7 +160,7 @@ func (p *Provider) WaitForStop(ctx context.Context, serverUUID string) error {
 // isManaged checks whether a server carries the managed label.
 func isManaged(s upcloud.ServerDetails) bool {
 	for _, l := range s.Labels {
-		if l.Key == managedLabel && l.Value == "true" {
+		if l.Key == managedLabelKey && l.Value == managedLabelValue {
 			return true
 		}
 	}

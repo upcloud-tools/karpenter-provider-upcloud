@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -62,9 +63,14 @@ func serializeLabels(labels map[string]string) string {
 	if len(labels) == 0 {
 		return ""
 	}
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	parts := make([]string, 0, len(labels))
-	for k, v := range labels {
-		parts = append(parts, k+"="+v)
+	for _, k := range keys {
+		parts = append(parts, k+"="+labels[k])
 	}
 	return strings.Join(parts, ",")
 }
