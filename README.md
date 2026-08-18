@@ -10,7 +10,7 @@ Karpenter provider implementation for [UpCloud](https://upcloud.com), enabling e
 > drift detection, node repair, GPU scheduling, and spot capacity all work; broader end-to-end
 > coverage against live clusters is still being expanded.
 
-**Note** that the provider suffers from this upstream bug: https://github.com/kubernetes-sigs/karpenter/issues/3121. This results in n + 1 VM being started, so for one pod, two VMs will be started, for 2 pods, 3 VMs will be started, and so on. The extra VM runs for its TTL duration (default 50m) before being cleaned up. As soon as a fix is available, I'll update this provider ASAP.
+**Note**: the n+1 VM issue ([kubernetes-sigs/karpenter#3121](https://github.com/kubernetes-sigs/karpenter/issues/3121)) is fixed in this provider via a [fork of Karpenter](https://github.com/aardbol/karpenter/tree/fix/3121) with a [fix PR (#3243)](https://github.com/kubernetes-sigs/karpenter/pull/3243) pending upstream merge. Until the PR is merged, this provider uses the forked dependency via a `replace` directive in `go.mod`.
 
 ## How Karpenter Works
 
