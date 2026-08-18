@@ -478,8 +478,14 @@ func cleanupE2EServers(ctx context.Context, ip *instance.Provider, runID string)
 		if !matched {
 			continue
 		}
-		_ = ip.Stop(ctx, s.UUID)
-		_ = ip.WaitForStop(ctx, s.UUID)
+		if err := ip.Stop(ctx, s.UUID); err != nil {
+			fmt.Printf("cleanup: stop server %s failed: %v\n", s.UUID, err)
+		}
+		stopCtx, stopCancel := context.WithTimeout(ctx, 2*time.Minute)
+		if err := ip.WaitForStop(stopCtx, s.UUID); err != nil {
+			fmt.Printf("cleanup: wait for stop server %s failed/timed out: %v\n", s.UUID, err)
+		}
+		stopCancel()
 		for range 6 {
 			if err := ip.Delete(ctx, s.UUID); err == nil {
 				break
