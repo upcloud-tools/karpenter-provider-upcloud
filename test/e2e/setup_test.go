@@ -179,12 +179,6 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 		return env.kubeClient.Create(env.ctx, nodeclass)
 	}), "creating nodeclass")
 	
-	t.Cleanup(func() {
-		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
-			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
-		})
-	})
-
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-ttl-nc-" + env.runID},
 		Spec: karpv1.NodeClaimSpec{
@@ -212,6 +206,9 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	require.NoError(t, err, "Create")
 	t.Cleanup(func() {
 		_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
+		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
+			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
+		})
 	})
 
 	createNC := &karpv1.NodeClaim{

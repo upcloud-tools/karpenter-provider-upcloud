@@ -148,6 +148,15 @@ func (p *Provider) Stop(ctx context.Context, serverUUID string) error {
 	return err
 }
 
+// WaitForStart blocks until the server reaches the started state.
+func (p *Provider) WaitForStart(ctx context.Context, serverUUID string) error {
+	_, err := p.svc.WaitForServerState(ctx, &request.WaitForServerStateRequest{
+		UUID:         serverUUID,
+		DesiredState: upcloud.ServerStateStarted,
+	})
+	return err
+}
+
 // WaitForStop blocks until the server reaches the stopped state.
 func (p *Provider) WaitForStop(ctx context.Context, serverUUID string) error {
 	_, err := p.svc.WaitForServerState(ctx, &request.WaitForServerStateRequest{

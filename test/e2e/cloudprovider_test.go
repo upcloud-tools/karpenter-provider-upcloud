@@ -87,15 +87,15 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	}), "creating nodeclass")
 
 	var created *karpv1.NodeClaim
-	defer func() {
+	t.Cleanup(func() {
 		if created != nil {
 			_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
 		}
-		cleanupE2EServers(context.WithoutCancel(env.ctx), env.instanceProvider, env.runID)
+		env.cleanupServers()
 		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
 			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
 		})
-	}()
+	})
 
 	gpuFallbackPlans := []string{
 		"GPU-SPOT-8xCPU-64GB-1xL4",
@@ -145,6 +145,14 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	}
 	if created == nil {
 		t.Skipf("all GPU plans have no capacity in zone %s", env.zone)
+	}
+
+	// Wait for the server to reach started state before proceeding with assertions
+	serverUUID := strings.TrimPrefix(created.Status.ProviderID, "upcloud:////")
+	waitCtx, waitCancel := context.WithTimeout(env.ctx, 3*time.Minute)
+	defer waitCancel()
+	if err := env.instanceProvider.WaitForStart(waitCtx, serverUUID); err != nil {
+		t.Fatalf("waiting for server %s to start: %v", serverUUID, err)
 	}
 
 	assert.True(t, strings.HasPrefix(created.Status.ProviderID, "upcloud:////"), "expected upcloud providerID, got %q", created.Status.ProviderID)
