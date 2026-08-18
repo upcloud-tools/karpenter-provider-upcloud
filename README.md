@@ -14,35 +14,21 @@ Karpenter provider implementation for [UpCloud](https://upcloud.com), enabling e
 
 ## How Karpenter Works
 
-Karpenter is a Kubernetes node autoscaler that replaces the traditional
-[Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler).
-Instead of managing node groups and scaling them up/down, Karpenter works at the
-individual node level:
+Karpenter is a Kubernetes node autoscaler that replaces the traditional [Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler). Instead of managing node groups and scaling them up/down, Karpenter works at the individual node level:
 
-1. **Watch** — Karpenter watches for unschedulable pods (pods that the Kubernetes
-   scheduler couldn't place due to resource constraints, taints, affinities, etc.)
-2. **Evaluate** — It evaluates the pod's scheduling requirements (resource requests,
-   node selectors, affinities, tolerations, topology spread) against known instance types
-3. **Provision** — It picks the cheapest instance type that fits and provisions a node
-   directly via a cloud provider
-4. **Remove** — When nodes are underutilized or expired, Karpenter cordons, drains,
-   and terminates them
+1. **Watch** — Karpenter watches for unschedulable pods
+2. **Evaluate** — It evaluates the pod's scheduling requirements against known instance types
+3. **Provision** — It picks the cheapest instance type that fits and provisions a node directly via a cloud provider
+4. **Remove** — When nodes are underutilized or expired, Karpenter cordons, drains, and terminates them
 
-Unlike Cluster Autoscaler which is node-group-aware, Karpenter is not. This means it
-can bin-pack pods across different instance types without being constrained by
-pre-defined group boundaries. The result is better utilization, lower cost, and
-faster scaling.
+Unlike Cluster Autoscaler which is node-group-aware, Karpenter is not. This means it can efficiently pack pods across different instance types without being constrained by pre-defined group boundaries. The result is better utilization, lower cost, and faster scaling.
 
-The key enabler for Karpenter's scheduling is the `GetInstanceTypes()` method on the
-cloud provider interface. This returns every available instance type with its CPU,
-memory, GPU, and pricing — even when zero nodes exist in the cluster. Karpenter uses
-this to simulate pod placement and choose the optimal instance type. This is called
-**scale-from-zero**.
+The key enabler for Karpenter's scheduling is the `GetInstanceTypes()` method on the cloud provider interface. This returns every available instance type with its CPU, memory, GPU, and pricing. Karpenter uses this to simulate pod placement and choose the optimal instance type.
+This is called **scale-from-zero**.
 
 ## How This Implementation Works
 
-This provider integrates Karpenter with UpCloud's compute API to provision
-individual servers directly — the same approach every other Karpenter provider uses.
+This provider integrates Karpenter with UpCloud's compute API to provision individual servers directly.
 
 ### Architecture
 
@@ -91,8 +77,7 @@ individual servers directly — the same approach every other Karpenter provider
    - `CreateServer()` provisions a bare UpCloud server with the chosen plan
    - The server boots, runs cloud-init, and joins the cluster via `kubeadm join`
 4. `Delete()` calls `DeleteServerAndStorages()` to terminate the server
-5. `List()` / `Get()` use `GetServers()` / `GetServerDetails()` filtered by the
-    `karpenter.upcloud.com/managed` label
+5. `List()` / `Get()` use `GetServers()` / `GetServerDetails()` filtered by the `managed_by=karpenter` label
 
 ### Drift detection
 
@@ -133,17 +118,26 @@ Karpenter does not size disks from pod storage requests; the disk is a fixed, co
 
 UpCloud exposes spot capacity as dedicated plan names (e.g. `GPU-SPOT-8xCPU-64GB-1xL4`). The provider
 surfaces each plan as its own instance type: on-demand plans carry `karpenter.sh/capacity-type: on-demand`
-and spot plans carry `karpenter.sh/capacity-type: spot`. A NodePool requesting
-`karpenter.sh/capacity-type: spot` is matched by Karpenter's scheduler to spot plans only; when no
-spot plan matches the requested shape, no instance type is found and the pod stays unscheduled (no
-silent fallback to on-demand). Spot pricing is taken from the live catalog and used for cost-aware
-scheduling.
+and spot plans carry `karpenter.sh/capacity-type: spot`. A NodePool requesting `karpenter.sh/capacity-type: spot` is
+matched by Karpenter's scheduler to spot plans only; when no spot plan matches the requested shape, no
+instance type is found and the pod stays unscheduled. Spot pricing is taken from the live catalog and used for cost-aware scheduling.
 
-> To run a NodePool on spot, set `spec.template.spec.requirements: - key: karpenter.sh/capacity-type, operator: In, values: ["spot"]`.
+> To run a NodePool on spot, set:
+>
+> ```yaml
+> spec:
+>   template:
+>     spec:
+>       requirements:
+>         - key: karpenter.sh/capacity-type
+>           operator: In
+>           values:
+>             - spot
+> ```
 
 ### NodeClaim TTL (alpha)
 
-This provider ships an optional absolute-lifetime TTL controller for NodeClaims as an alternative to Karpenter's built-in consolidation, to make maximum and optimal use of UpCloud's hourtly billing cycle. The controller is an **alpha** release. The core logic and unit tests are solid, but e2e coverage against live clusters still needs more testing.
+This provider ships an optional absolute-lifetime TTL controller for NodeClaims as an alternative to Karpenter's built-in consolidation, to make maximum and optimal use of UpCloud's hourly billing cycle. The controller is an **alpha** release. The core logic and unit tests are solid, but e2e coverage against live clusters still needs more testing.
 
 The controller is disabled by default. Enable it by setting `UPCLOUD_NODECLAIM_TTL_ENABLED=true` on the operator.
 The TTL defaults to 50minutes and is configurable via `UPCLOUD_NODECLAIM_TTL` (any Go duration, e.g. `30m`, `1h`).
@@ -164,36 +158,31 @@ Karpenter's built-in `node.health` controller calls the provider's `RepairPolici
 
 The toleration defaults to **30 minutes** and is configurable via `UPCLOUD_REPAIR_TOLERATION` (any Go duration string, e.g. `15m`, `1h`). Node *termination* (a node with a deletion timestamp that won't go away) is handled separately by Karpenter's built-in `node.termination` controller, so it is not part of `RepairPolicies()`.
 
-
 ### Scale-from-zero
 
-`GetInstanceTypes()` calls `GetPlans()` which returns all server plans with
-CPU, RAM, and GPU specs. Karpenter can bin-pack pods onto any plan without
-any servers running. Pricing is fetched from `GetPricesByZone()` and cached
-with a 30-minute TTL.
+`GetInstanceTypes()` returns cached instance types discovered at startup via `Refresh()`, which calls `GetPlans()` to fetch all server plans with CPU, RAM, and GPU specs, then `GetPricesByZone()` for pricing. Karpenter can optimally place pods onto any plan without any servers running. The cache is refreshed periodically (pricing cached with a 30-minute TTL).
 
 ### Required environment variables
 
 | Variable | Description |
-|-------------|
+|----------|-------------|
 | `UPCLOUD_TOKEN` | UpCloud API token |
-| `UPCLOUD_KUBERNETES_CLUSTER_ID` | UKS cluster UUID — zone and API server endpoint auto-detected |
+| `UPCLOUD_KUBERNETES_CLUSTER_ID` | UKS cluster UUID |
 | `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: Debian 13) |
 | `UPCLOUD_REPAIR_TOLERATION` | How long a `NotReady`/`Unknown` node is tolerated before Karpenter recycles it (optional, default: `30m`) |
-| `UPCLOUD_NODECLAIM_TTL_ENABLED` | Enable the alpha NodeClaim TTL controller (optional, default: unset — disabled) |
-| `UPCLOUD_NODECLAIM_TTL` | TTL for idle NodeClaims (optional, default: `50m`) |
+| `UPCLOUD_NODECLAIM_TTL_ENABLED` | Enable the alpha NodeClaim TTL controller (optional, default: unset = disabled) |
+| `UPCLOUD_NODECLAIM_TTL` | Absolute lifetime for NodeClaims (optional, default: `50m`) |
 
 #### Required UpCloud API permissions
 
 The credentials need the following permissions in the UpCloud API:
 
-| Resource | Permission | Reason |
-|----------|------------|
-| Kubernetes clusters | `read` | Auto-detect zone, plan, and API server endpoint of the target cluster |
-| Server | `read`, `create`, `delete` | Provision and terminate Karpenter-managed nodes |
-| Storage | `read`, `create`, `delete` | Create/clean up cloud-init and OS disk storage |
-| Network | `read` | Attach nodes to the correct network |
-| Labels | `write` | Tag servers with `karpenter.upcloud.com/managed=true` |
+| Resource | Reason |
+|----------|--------|
+| Kubernetes cluster | Auto-detect zone, plan, and API server endpoint of the target cluster |
+| Server | Provision and terminate Karpenter-managed nodes |
+| Storage | Create/clean up cloud-init and OS disk storage |
+| Private network | Attach nodes to the correct K8s network |
 
 Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN` is used with bearer auth.
 
@@ -201,33 +190,22 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 
 ```
 ├── cmd/karpenter-upcloud/     ← entry point + Containerfile
-│   ├── main.go
-│   └── Containerfile
 ├── internal/version/          ← build-time version info
-│   └── version.go
 ├── apis/v1alpha1/             ← UpCloudNodeClass CRD types
-│   ├── groupversion_info.go
-│   ├── upcloudnodeclass_types.go
-│   ├── upcloudnodeclass_status.go
-│   └── zz_generated.deepcopy.go
 ├── pkg/
 │   ├── cloudprovider/         ← core provider implementation
-│   │   ├── cloudprovider.go
 │   │   └── helpers.go          ← bootstrap token + CA bundle
+│   ├── controllers/           ← Kubernetes controllers
+│   │   ├── nodeclaimttl/      ← alpha TTL controller
+│   │   └── nodeclass/         ← nodeclass reconciliation
 │   └── providers/
 │       ├── options.go          ← env var parsing
 │       ├── instance/           ← server lifecycle (Create/Delete/Get/List)
-│       │   └── instance.go
-│   ├── instancetypes/      ← plan discovery + cached pricing
-│   │   └── instancetypes.go
+│       ├── instancetypes/      ← plan discovery + cached pricing
 │       └── userdata/           ← cloud-init generation
-│           └── userdata.go
+├── charts/karpenter-upcloud/  ← Helm chart
 ├── examples/                  ← sample CRDs
-│   ├── upcloudnodeclass.yaml
-│   └── nodepool.yaml
 ├── Makefile
-├── LICENSE
-└── README.md
 ```
 
 ## Developing
