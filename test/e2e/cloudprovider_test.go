@@ -67,7 +67,6 @@ func TestLiveInstanceTypes(t *testing.T) {
 // resource, and validates that the server is reachable via Get with the correct providerID and labels.
 func TestLiveCloudProviderCreate(t *testing.T) {
 	env := newE2ETestEnv(t)
-	defer env.cleanupServers()
 
 	plan := env.envPlan()
 	capacityType := env.envCapacityType()
