@@ -4,7 +4,7 @@ This document describes how to create a new release of the Karpenter Provider fo
 
 ## Automated Releases
 
-Releases are automated via GitHub Actions. Two workflows trigger when `charts/karpenter-upcloud/Chart.yaml` is pushed to `main`:
+Releases are automated via GitHub Actions. Two workflows trigger when `deploy/helm/Chart.yaml` is pushed to `main`:
 
 ### Application Release (`release-app.yaml`)
 
@@ -58,7 +58,7 @@ Also update the `artifacthub.io/changes` annotation with the latest changelog en
 ### 3. Push to main
 
 ```bash
-git add CHANGELOG.md charts/karpenter-upcloud/Chart.yaml
+git add CHANGELOG.md deploy/helm/Chart.yaml
 git commit -m "release: v1.0.0"
 git push origin main
 ```
@@ -79,7 +79,7 @@ make container-build CONTAINER_REPO=ghcr.io/upcloud-tools/karpenter-upcloud IMAG
 make push-image CONTAINER_REPO=ghcr.io/upcloud-tools/karpenter-upcloud IMAGE_TAG=v1.0.0
 
 # Package and push Helm chart
-cp LICENSE README.md charts/karpenter-upcloud/
-helm package charts/karpenter-upcloud --destination dist
+cp LICENSE README.md deploy/helm/
+helm package deploy/helm --destination dist
 helm push dist/*.tgz oci://ghcr.io/upcloud-tools/charts
 ```
