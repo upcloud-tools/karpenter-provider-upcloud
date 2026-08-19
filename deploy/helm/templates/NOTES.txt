@@ -4,7 +4,7 @@ Karpenter provider for UpCloud has been installed.
 
    kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "karpenter-upcloud.name" . }}
 
-{{- if not .Values.existingSecret }}
+{{- if not .Values.config.auth.existingSecret }}
 {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "karpenter-upcloud.secretName" .) }}
 {{- if not $secret }}
 
@@ -12,7 +12,7 @@ Karpenter provider for UpCloud has been installed.
   Create it with an UpCloud API token:
 
     kubectl --namespace {{ .Release.Namespace }} create secret generic {{ include "karpenter-upcloud.secretName" . }} \
-      --from-literal={{ .Values.existingSecretTokenKey }}=YOUR_TOKEN
+      --from-literal={{ .Values.config.auth.tokenKey }}=YOUR_TOKEN
 
 {{- else }}
 
@@ -21,7 +21,7 @@ Karpenter provider for UpCloud has been installed.
 {{- end }}
 {{- else }}
 
-2. Using existing secret "{{ .Values.existingSecret }}" for credentials.
+2. Using existing secret "{{ .Values.config.auth.existingSecret }}" for credentials.
 
 {{- end }}
 

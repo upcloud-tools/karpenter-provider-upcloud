@@ -168,7 +168,7 @@ The toleration defaults to **30 minutes** and is configurable via `UPCLOUD_REPAI
 |----------|-------------|
 | `UPCLOUD_TOKEN` | UpCloud API token |
 | `UPCLOUD_KUBERNETES_CLUSTER_ID` | UKS cluster UUID |
-| `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: Debian 13) |
+| `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: UKS Debian 13) |
 | `UPCLOUD_REPAIR_TOLERATION` | How long a `NotReady`/`Unknown` node is tolerated before Karpenter recycles it (optional, default: `30m`) |
 | `UPCLOUD_NODECLAIM_TTL_ENABLED` | Enable the alpha NodeClaim TTL controller (optional, default: unset = disabled) |
 | `UPCLOUD_NODECLAIM_TTL` | Absolute lifetime for NodeClaims (optional, default: `50m`) |

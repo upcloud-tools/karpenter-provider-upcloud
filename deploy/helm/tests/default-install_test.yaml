@@ -2,7 +2,8 @@ suite: default install
 tests:
   - it: should generate all default resources
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     asserts:
       - isKind:
           of: Deployment
@@ -21,7 +22,8 @@ tests:
 
   - it: should NOT generate PDB or extra objects by default
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     asserts:
       - hasDocuments:
           count: 0
@@ -35,7 +37,8 @@ tests:
 
   - it: should have correct deployment name
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -47,7 +50,8 @@ tests:
 
   - it: should have correct labels on resources
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -64,7 +68,8 @@ tests:
 
   - it: should use selectorLabels for matchLabels
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -76,7 +81,8 @@ tests:
 
   - it: should have correct container image
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -85,7 +91,8 @@ tests:
 
   - it: should use custom image tag when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       image:
         tag: "custom-tag"
     template: deployment.yaml
@@ -96,7 +103,8 @@ tests:
 
   - it: should have correct container name
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -105,7 +113,8 @@ tests:
 
   - it: should have liveness and readiness probes
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -123,9 +132,71 @@ tests:
 
   - it: should have priorityClassName set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
+
+  - it: should have default env vars for repair, starter, and premium plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_REPAIR_TOLERATION
+            value: "30m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_STARTER_PLANS
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_PREMIUM_PLANS
+            value: "false"
+
+  - it: should allow overriding repairToleration
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        repairToleration: "1h"
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_REPAIR_TOLERATION
+            value: "1h"
+
+  - it: should allow enabling starter plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        allowStarterPlans: true
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_STARTER_PLANS
+            value: "true"
+
+  - it: should allow enabling premium plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        allowPremiumPlans: true
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_PREMIUM_PLANS
+            value: "true"

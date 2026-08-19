@@ -28,8 +28,6 @@ import (
 	_ "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 )
 
-const defaultNodeClaimTTL = 50 * time.Minute
-
 func main() {
 	ctx := context.Background()
 	ctxOp, op := operator.NewOperator()
@@ -66,11 +64,9 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 
 	zone := cluster.Zone
 
-	storageUUID := os.Getenv("UPCLOUD_TEMPLATE_UUID")
-	if storageUUID == "" && len(cluster.NodeGroups) > 0 {
-		storageUUID = cluster.NodeGroups[0].Storage
-	} else if storageUUID == "" {
-		storageUUID = "01000000-0000-4000-8000-000160150100"
+	storageUUID, err := requireEnv("UPCLOUD_TEMPLATE_UUID")
+	if err != nil {
+		return err
 	}
 
 	itProvider := instancetypes.NewProvider(svc, zone)
@@ -115,23 +111,19 @@ func run(ctx context.Context, ctxOp context.Context, op *operator.Operator) erro
 		return fmt.Errorf("setting up nodeclass controller: %w", err)
 	}
 
-	if os.Getenv("UPCLOUD_NODECLAIM_TTL_ENABLED") == "true" {
-		ttl := defaultNodeClaimTTL
-		if v := os.Getenv("UPCLOUD_NODECLAIM_TTL"); v != "" {
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return fmt.Errorf("parsing UPCLOUD_NODECLAIM_TTL %q: %w", v, err)
-			}
-			ttl = d
+	if v := os.Getenv("UPCLOUD_NODECLAIM_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return fmt.Errorf("parsing UPCLOUD_NODECLAIM_TTL %q: %w", v, err)
 		}
 		ttlController := nodeclaimttl.Controller{
 			Client: op.GetClient(),
-			TTL:    ttl,
+			TTL:    d,
 		}
 		if err := ttlController.SetupWithManager(op.Manager); err != nil {
 			return fmt.Errorf("setting up nodeclaim TTL controller: %w", err)
 		}
-		op.GetLogger().Info("nodeclaim TTL controller enabled", "TTL", ttl)
+		op.GetLogger().Info("nodeclaim TTL controller enabled", "TTL", d)
 	}
 
 	op.WithControllers(ctxOp, controllerList...).Start(ctxOp)
@@ -166,4 +158,12 @@ func resolveClusterEndpoint(ctx context.Context, svc *service.Service, clusterUU
 	}
 
 	return kc.Clusters[0].Cluster.Server, nil
+}
+
+func requireEnv(key string) (string, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return "", fmt.Errorf("%s environment variable is required", key)
+	}
+	return value, nil
 }

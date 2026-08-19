@@ -2,7 +2,8 @@ suite: pod disruption budget
 tests:
   - it: should not render PDB by default
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: pdb.yaml
     asserts:
       - hasDocuments:
@@ -10,7 +11,8 @@ tests:
 
   - it: should render PDB when enabled with maxUnavailable
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       podDisruptionBudget:
         enabled: true
         maxUnavailable: 1
@@ -29,7 +31,8 @@ tests:
 
   - it: should render PDB with minAvailable
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       podDisruptionBudget:
         enabled: true
         minAvailable: 1

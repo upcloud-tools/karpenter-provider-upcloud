@@ -2,7 +2,7 @@ apiVersion: v2
 name: karpenter-upcloud
 description: Karpenter provider for UpCloud
 type: application
-version: "0.1.7"
+version: "1.0.0"
 appVersion: "0.9.6"
 kubeVersion: ">=1.30.0"
 keywords:
@@ -25,4 +25,4 @@ annotations:
     - name: Support
       url: https://github.com/upcloud-tools/karpenter-provider-upcloud/issues
   artifacthub.io/changes: |
-    - "chart improvements: security contexts, probes, PDB, schema validation, unit tests, CI/CD"
+    - "Initial full release with schema validation"

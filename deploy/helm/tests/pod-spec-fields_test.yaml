@@ -2,7 +2,8 @@ suite: pod spec fields
 tests:
   - it: should not render optional fields by default
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - notExists:
@@ -18,7 +19,8 @@ tests:
 
   - it: should render terminationGracePeriodSeconds
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       terminationGracePeriodSeconds: 60
     template: deployment.yaml
     asserts:
@@ -28,7 +30,8 @@ tests:
 
   - it: should render revisionHistoryLimit when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       revisionHistoryLimit: 5
     template: deployment.yaml
     asserts:
@@ -38,7 +41,8 @@ tests:
 
   - it: should render nodeSelector when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       nodeSelector:
         kubernetes.io/arch: amd64
     template: deployment.yaml
@@ -49,7 +53,8 @@ tests:
 
   - it: should render tolerations when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       tolerations:
         - key: "key1"
           operator: "Equal"
@@ -63,7 +68,8 @@ tests:
 
   - it: should render topologySpreadConstraints when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -76,7 +82,8 @@ tests:
 
   - it: should render imagePullSecrets when set
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       imagePullSecrets:
         - name: my-registry-creds
     template: deployment.yaml

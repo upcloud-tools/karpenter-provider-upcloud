@@ -2,7 +2,8 @@ suite: common metadata
 tests:
   - it: should apply commonLabels to all resources
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       commonLabels:
         environment: production
         team: platform
@@ -26,7 +27,8 @@ tests:
 
   - it: should apply podLabels to deployment
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       podLabels:
         custom-label: custom-value
     template: deployment.yaml
@@ -37,7 +39,8 @@ tests:
 
   - it: should apply podAnnotations to deployment
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       podAnnotations:
         sidecar.istio.io/inject: "true"
     template: deployment.yaml
@@ -48,7 +51,8 @@ tests:
 
   - it: should include helm.sh/chart label
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - exists:

@@ -2,7 +2,8 @@ suite: extra objects
 tests:
   - it: should not render anything when extraObjects is empty
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: extra-objects.yaml
     asserts:
       - hasDocuments:
@@ -10,7 +11,8 @@ tests:
 
   - it: should render a single extra object
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       extraObjects:
         - apiVersion: v1
           kind: Namespace
@@ -29,7 +31,8 @@ tests:
 
   - it: should render multiple extra objects
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       extraObjects:
         - apiVersion: v1
           kind: Namespace
@@ -52,7 +55,8 @@ tests:
 
   - it: should evaluate tpl expressions in extra objects
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       extraObjects:
         - apiVersion: v1
           kind: Namespace

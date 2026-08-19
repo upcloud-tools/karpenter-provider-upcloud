@@ -39,8 +39,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "karpenter-upcloud.secretName" -}}
-{{- if .Values.existingSecret }}
-{{- .Values.existingSecret }}
+{{- if .Values.config.auth.existingSecret }}
+{{- .Values.config.auth.existingSecret }}
 {{- else }}
 {{- include "karpenter-upcloud.fullname" . }}
 {{- end }}

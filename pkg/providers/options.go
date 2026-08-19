@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const defaultRepairToleration = 30 * time.Minute
-
 type Options struct {
 	Token            string
 	ClusterUUID      string
@@ -25,13 +23,13 @@ func NewOptionsFromEnvironment() (*Options, error) {
 		return nil, err
 	}
 
-	repairToleration := defaultRepairToleration
-	if v := os.Getenv("UPCLOUD_REPAIR_TOLERATION"); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return nil, fmt.Errorf("parsing UPCLOUD_REPAIR_TOLERATION %q: %w", v, err)
-		}
-		repairToleration = d
+	repairTolerationStr, err := getRequiredEnv("UPCLOUD_REPAIR_TOLERATION")
+	if err != nil {
+		return nil, err
+	}
+	repairToleration, err := time.ParseDuration(repairTolerationStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing UPCLOUD_REPAIR_TOLERATION %q: %w", repairTolerationStr, err)
 	}
 
 	return &Options{

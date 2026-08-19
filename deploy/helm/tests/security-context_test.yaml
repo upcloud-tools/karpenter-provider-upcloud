@@ -2,7 +2,8 @@ suite: security context
 tests:
   - it: should render default podSecurityContext
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -11,7 +12,8 @@ tests:
 
   - it: should render default container securityContext
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
     template: deployment.yaml
     asserts:
       - equal:
@@ -26,7 +28,8 @@ tests:
 
   - it: should allow overriding podSecurityContext
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       podSecurityContext:
         runAsUser: 1000
         runAsNonRoot: true
@@ -43,7 +46,8 @@ tests:
 
   - it: should allow overriding container securityContext
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       securityContext:
         allowPrivilegeEscalation: true
         capabilities:
@@ -56,7 +60,8 @@ tests:
 
   - it: should allow minimal securityContext override
     set:
-      clusterUUID: test-uuid
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
       securityContext:
         runAsNonRoot: true
       podSecurityContext:
