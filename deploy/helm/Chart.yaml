@@ -4,7 +4,7 @@ description: Karpenter provider for UpCloud
 type: application
 version: "1.0.0"
 appVersion: "0.9.6"
-kubeVersion: ">=1.30.0"
+kubeVersion: ">=1.31.0"
 keywords:
   - karpenter
   - upcloud

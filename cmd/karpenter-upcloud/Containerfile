@@ -19,8 +19,11 @@ FROM alpine:3.23.5
 LABEL org.opencontainers.image.source=https://github.com/upcloud-tools/karpenter-provider-upcloud \
       org.opencontainers.image.description="Karpenter provider for UpCloud Kubernetes Service"
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && \
+    adduser -D -u 65532 karpenter
 
 COPY --from=build /workspace/karpenter-upcloud /bin/
+
+USER 65532
 
 ENTRYPOINT ["/bin/karpenter-upcloud"]

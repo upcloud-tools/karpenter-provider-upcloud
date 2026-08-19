@@ -44,6 +44,13 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          ports:
+            - name: http-metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: http-health
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: UPCLOUD_TOKEN
               valueFrom:
