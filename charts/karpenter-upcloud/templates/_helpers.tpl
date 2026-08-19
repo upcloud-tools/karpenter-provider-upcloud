@@ -16,8 +16,32 @@
 {{- end }}
 
 {{- define "karpenter-upcloud.labels" -}}
+helm.sh/chart: {{ include "karpenter-upcloud.name" . }}-{{ .Chart.Version | replace "+" "_" }}
+{{ include "karpenter-upcloud.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.commonLabels }}
+{{ tpl (toYaml .) $ }}
+{{- end }}
+{{- end }}
+
+{{- define "karpenter-upcloud.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "karpenter-upcloud.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "karpenter-upcloud.image" -}}
+{{- $repository := .Values.image.repository -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end }}
+
+{{- define "karpenter-upcloud.secretName" -}}
+{{- if .Values.existingSecret }}
+{{- .Values.existingSecret }}
+{{- else }}
+{{- include "karpenter-upcloud.fullname" . }}
+{{- end }}
 {{- end }}
