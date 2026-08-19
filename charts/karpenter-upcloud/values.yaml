@@ -1,22 +1,37 @@
+# -- Overrides the chart name.
+nameOverride: ""
+
+# -- Overrides the full name.
+fullnameOverride: ""
+
+# -- Common labels added to all resources.
+commonLabels: {}
+
 image:
   repository: ghcr.io/upcloud-tools/karpenter-upcloud-test
   tag: ""
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
-# Credentials — token-based auth.
-# To use an existing secret, set existingSecret (key must be "token").
-# To create a new secret via Helm, set credentials.token.
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# Credentials for UpCloud API access.
+# Reference an existing secret, or have the chart create one.
 existingSecret: ""
 existingSecretTokenKey: token
 
 credentials:
   token: ""
 
-# Cluster UUID (required) — zone and API server endpoint are auto-detected via the UpCloud API
+# -- Cluster UUID (required).
 clusterUUID: ""
 
-# OS template UUID (optional — defaults to Debian 13)
+# -- OS template UUID (optional, defaults to Debian 13).
 templateUUID: ""
+
+nodeclaimTTL:
+  enabled: false
+  ttl: 50m
 
 resources:
   requests:
@@ -26,17 +41,37 @@ resources:
     cpu: 500m
     memory: 256Mi
 
-nodeclaimTTL:
-  enabled: false
-  ttl: 50m
-
+# -- Extra environment variables for the container.
 extraEnv: []
 
+# -- Extra labels for the pod template.
 podLabels: {}
 
+# -- Extra annotations for the pod template.
 podAnnotations: {}
 
-# Default: avoid karpenter-provisioned nodes, containing karpenter.sh/nodepool label.
+# -- Container security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+
+# -- Pod-level security context.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Priority class name for the pod.
+priorityClassName: system-cluster-critical
+
+# -- Node selector for pod scheduling.
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
+tolerations: []
+
+# -- Affinity rules for pod scheduling.
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
@@ -44,3 +79,38 @@ affinity:
         - matchExpressions:
             - key: karpenter.sh/nodepool
               operator: DoesNotExist
+
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+
+# -- Termination grace period in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Revision history limit.
+revisionHistoryLimit: null
+
+# -- Liveness probe.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8081
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+# -- Readiness probe.
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8081
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+# -- Pod Disruption Budget.
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: null
+  minAvailable: null
+
+# -- Extra Kubernetes objects to deploy.
+# Supports Go template expressions.
+extraObjects: []
