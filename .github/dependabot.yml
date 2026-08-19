@@ -46,3 +46,15 @@ updates:
       devcontainers:
         patterns:
           - "*"
+
+  - package-ecosystem: helm
+    commit-message:
+      prefix: chore(helm)
+    directory: /charts/karpenter-upcloud
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      helm:
+        patterns:
+          - "*"
