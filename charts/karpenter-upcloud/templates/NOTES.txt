@@ -1,0 +1,58 @@
+Karpenter provider for UpCloud has been installed.
+
+1. Verify the provider is running:
+
+   kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "karpenter-upcloud.name" . }}
+
+{{- if not .Values.existingSecret }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace (include "karpenter-upcloud.secretName" .) }}
+{{- if not $secret }}
+
+  [WARNING] Credential secret "{{ include "karpenter-upcloud.secretName" . }}" not found.
+  Create it with an UpCloud API token:
+
+    kubectl --namespace {{ .Release.Namespace }} create secret generic {{ include "karpenter-upcloud.secretName" . }} \
+      --from-literal={{ .Values.existingSecretTokenKey }}=YOUR_TOKEN
+
+{{- else }}
+
+2. Credential secret "{{ include "karpenter-upcloud.secretName" . }}" found.
+
+{{- end }}
+{{- else }}
+
+2. Using existing secret "{{ .Values.existingSecret }}" for credentials.
+
+{{- end }}
+
+3. Create an UpCloudNodeClass and NodePool to start provisioning:
+
+   kubectl apply -f - <<EOF
+   apiVersion: karpenter.upcloud.com/v1alpha1
+   kind: UpCloudNodeClass
+   metadata:
+     name: default
+   spec:
+     zone: de-fra1
+     plan: CLOUDNATIVE-2xCPU-4GB
+     storageGB: 20
+     storageTier: maxiops
+     sshKeys:
+       - "ssh-ed25519 AAAA..."
+   ---
+   apiVersion: karpenter.sh/v1
+   kind: NodePool
+   metadata:
+     name: default
+   spec:
+     template:
+       spec:
+         nodeClassRef:
+           group: karpenter.upcloud.com
+           kind: UpCloudNodeClass
+           name: default
+     disruption:
+       consolidationPolicy: Never
+   EOF
+
+Visit https://github.com/upcloud-tools/karpenter-provider-upcloud for more information.
