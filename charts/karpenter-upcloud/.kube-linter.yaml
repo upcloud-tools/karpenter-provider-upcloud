@@ -1,0 +1,9 @@
+checks:
+  exclude:
+    # Resource requests/limits are configurable via values; leave empty by default
+    - unset-cpu-requirements
+    - unset-memory-requirements
+    # Latest tag is the chart default; users override via values
+    - latest-tag
+    # Anti-affinity not configured by default for single-replica deployment
+    - no-anti-affinity

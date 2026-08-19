@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object", "default": {}, "additionalProperties": { "type": "string" } },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string", "default": "" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "Never", "IfNotPresent"], "default": "IfNotPresent" }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "default": [], "items": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] } },
+    "existingSecret": { "type": "string", "default": "" },
+    "existingSecretTokenKey": { "type": "string", "default": "token" },
+    "credentials": {
+      "type": "object",
+      "properties": {
+        "token": { "type": "string", "default": "" }
+      }
+    },
+    "clusterUUID": { "type": "string", "default": "" },
+    "templateUUID": { "type": "string", "default": "" },
+    "nodeclaimTTL": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ttl": { "type": "string", "default": "50m" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": { "type": "object", "additionalProperties": { "type": "string" } },
+        "limits": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "extraEnv": { "type": "array", "default": [], "items": { "type": "object" } },
+    "podLabels": { "type": "object", "default": {}, "additionalProperties": { "type": "string" } },
+    "podAnnotations": { "type": "object", "default": {}, "additionalProperties": { "type": "string" } },
+    "securityContext": { "type": "object", "default": {} },
+    "podSecurityContext": { "type": "object", "default": {} },
+    "priorityClassName": { "type": "string", "default": "system-cluster-critical" },
+    "nodeSelector": { "type": "object", "default": {}, "additionalProperties": { "type": "string" } },
+    "tolerations": { "type": "array", "default": [], "items": { "type": "object" } },
+    "affinity": { "type": "object", "default": {} },
+    "topologySpreadConstraints": { "type": "array", "default": [], "items": { "type": "object" } },
+    "terminationGracePeriodSeconds": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }], "default": 30 },
+    "revisionHistoryLimit": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }], "default": null },
+    "livenessProbe": { "type": "object", "default": {} },
+    "readinessProbe": { "type": "object", "default": {} },
+    "podDisruptionBudget": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "maxUnavailable": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\d+%$" }], "default": null },
+        "minAvailable": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^\\d+%$" }], "default": null }
+      }
+    },
+    "extraObjects": { "type": "array", "default": [], "items": { "type": "object" } }
+  }
+}
