@@ -1,0 +1,71 @@
+suite: security context
+tests:
+  - it: should render default podSecurityContext
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: should render default container securityContext
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should allow overriding podSecurityContext
+    set:
+      clusterUUID: test-uuid
+      podSecurityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: should allow overriding container securityContext
+    set:
+      clusterUUID: test-uuid
+      securityContext:
+        allowPrivilegeEscalation: true
+        capabilities:
+          drop: ["ALL"]
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
+
+  - it: should allow minimal securityContext override
+    set:
+      clusterUUID: test-uuid
+      securityContext:
+        runAsNonRoot: true
+      podSecurityContext:
+        runAsUser: 1000
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000

@@ -1,0 +1,131 @@
+suite: default install
+tests:
+  - it: should generate all default resources
+    set:
+      clusterUUID: test-uuid
+    asserts:
+      - isKind:
+          of: Deployment
+        template: deployment.yaml
+      - isKind:
+          of: ServiceAccount
+        template: serviceaccount.yaml
+      - documentIndex: 0
+        isKind:
+          of: ClusterRole
+        template: rbac.yaml
+      - documentIndex: 1
+        isKind:
+          of: ClusterRoleBinding
+        template: rbac.yaml
+
+  - it: should NOT generate PDB or extra objects by default
+    set:
+      clusterUUID: test-uuid
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: pdb.yaml
+      - hasDocuments:
+          count: 0
+        template: extra-objects.yaml
+      - hasDocuments:
+          count: 0
+        template: secret.yaml
+
+  - it: should have correct deployment name
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-karpenter-upcloud
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have correct labels on resources
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+
+  - it: should use selectorLabels for matchLabels
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  - it: should have correct container image
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:0.9.6"
+
+  - it: should use custom image tag when set
+    set:
+      clusterUUID: test-uuid
+      image:
+        tag: "custom-tag"
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:custom-tag"
+
+  - it: should have correct container name
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: karpenter
+
+  - it: should have liveness and readiness probes
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 8081
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /readyz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 8081
+
+  - it: should have priorityClassName set
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical

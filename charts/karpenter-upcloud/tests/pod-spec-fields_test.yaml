@@ -1,0 +1,86 @@
+suite: pod spec fields
+tests:
+  - it: should not render optional fields by default
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.revisionHistoryLimit
+      - notExists:
+          path: spec.template.spec.topologySpreadConstraints
+      - notExists:
+          path: spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.template.spec.tolerations
+      - notExists:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: should render terminationGracePeriodSeconds
+    set:
+      clusterUUID: test-uuid
+      terminationGracePeriodSeconds: 60
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: should render revisionHistoryLimit when set
+    set:
+      clusterUUID: test-uuid
+      revisionHistoryLimit: 5
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.revisionHistoryLimit
+          value: 5
+
+  - it: should render nodeSelector when set
+    set:
+      clusterUUID: test-uuid
+      nodeSelector:
+        kubernetes.io/arch: amd64
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/arch"]
+          value: amd64
+
+  - it: should render tolerations when set
+    set:
+      clusterUUID: test-uuid
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: key1
+
+  - it: should render topologySpreadConstraints when set
+    set:
+      clusterUUID: test-uuid
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+
+  - it: should render imagePullSecrets when set
+    set:
+      clusterUUID: test-uuid
+      imagePullSecrets:
+        - name: my-registry-creds
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: my-registry-creds

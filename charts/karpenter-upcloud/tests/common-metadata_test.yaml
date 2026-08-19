@@ -1,0 +1,55 @@
+suite: common metadata
+tests:
+  - it: should apply commonLabels to all resources
+    set:
+      clusterUUID: test-uuid
+      commonLabels:
+        environment: production
+        team: platform
+    asserts:
+      - equal:
+          path: metadata.labels.environment
+          value: production
+        template: deployment.yaml
+      - equal:
+          path: metadata.labels.team
+          value: platform
+        template: deployment.yaml
+      - equal:
+          path: metadata.labels.environment
+          value: production
+        template: serviceaccount.yaml
+      - equal:
+          path: metadata.labels.environment
+          value: production
+        template: rbac.yaml
+
+  - it: should apply podLabels to deployment
+    set:
+      clusterUUID: test-uuid
+      podLabels:
+        custom-label: custom-value
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom-label
+          value: custom-value
+
+  - it: should apply podAnnotations to deployment
+    set:
+      clusterUUID: test-uuid
+      podAnnotations:
+        sidecar.istio.io/inject: "true"
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: "spec.template.metadata.annotations['sidecar.istio.io/inject']"
+          value: "true"
+
+  - it: should include helm.sh/chart label
+    set:
+      clusterUUID: test-uuid
+    template: deployment.yaml
+    asserts:
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
