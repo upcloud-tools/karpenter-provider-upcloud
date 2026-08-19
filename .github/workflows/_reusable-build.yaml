@@ -1,0 +1,78 @@
+name: Build Container Image
+
+on:
+  workflow_call:
+    inputs:
+      tags:
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  GO_VERSION: '1.26.6'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Log in to GHCR
+        uses: ./.github/actions/ghcr-login
+
+      - name: Compute build metadata
+        id: meta
+        run: |
+          VERSION=$(git describe --tags)
+          COMMIT=$(git log --format="%h" -n 1)
+          TREE_STATE=$(git diff --quiet && echo 'clean' || echo 'dirty')
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+          echo "tree_state=${TREE_STATE}" >> "${GITHUB_OUTPUT}"
+          echo "image=${IMAGE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build image
+        env:
+          TAG: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          TREE_STATE: ${{ steps.meta.outputs.tree_state }}
+          CONTAINER_REPO: ${{ steps.meta.outputs.image }}
+          IMAGE_TAG: ${{ inputs.tags }}
+        run: make container-build
+
+      - name: Push image
+        id: push-image
+        env:
+          CONTAINER_REPO: ${{ steps.meta.outputs.image }}
+          IMAGE_TAG: ${{ inputs.tags }}
+        run: |
+          DIGESTFILE=$(mktemp)
+          buildah push --digestfile "${DIGESTFILE}" \
+            "${CONTAINER_REPO}:${IMAGE_TAG}" \
+            "docker://${CONTAINER_REPO}:${IMAGE_TAG}"
+          echo "digest=$(cat "${DIGESTFILE}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Build summary
+        run: |
+          echo "## Container image" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | \`${{ steps.meta.outputs.image }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tags | \`${{ inputs.tags }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Digest | \`${{ steps.push-image.outputs.digest }}\` |" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,135 @@
+name: Release Helm chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - charts/karpenter-upcloud/Chart.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  CHART_DIR: charts/karpenter-upcloud
+  REGISTRY: ghcr.io
+  CHART_OCI_REPO: ${{ github.repository_owner }}/charts
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ steps.check.outputs.skip_release }}
+      chart_version: ${{ steps.check.outputs.chart_version }}
+      app_version_bumped: ${{ steps.check.outputs.app_version_bumped }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check version bump
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chart_version=$(yq .version "$CHART_DIR/Chart.yaml")
+          app_version=$(yq .appVersion "$CHART_DIR/Chart.yaml")
+          echo "chart_version=$chart_version" >> "$GITHUB_OUTPUT"
+
+          if gh release view "helm-v$chart_version" > /dev/null 2>&1; then
+            echo "Release helm-v$chart_version already exists. Skipping."
+            echo "skip_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip_release=false" >> "$GITHUB_OUTPUT"
+
+          if gh release view "$app_version" > /dev/null 2>&1; then
+            echo "app_version_bumped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_version_bumped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    needs: detect
+    if: ${{ needs.detect.outputs.skip == 'false' && needs.detect.outputs.app_version_bumped == 'false' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - capacityType: on-demand
+            plan: CLOUDNATIVE-2xCPU-4GB
+          - capacityType: spot
+            plan: GPU-SPOT-8xCPU-64GB-1xL4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+
+      - name: Live provisioning e2e (${{ matrix.capacityType }})
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+          UPCLOUD_E2E_PROVISION: "1"
+          UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
+          UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
+        run: go test -tags e2e ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
+
+  release-helm:
+    needs: [detect, e2e]
+    if: ${{ always() && needs.detect.outputs.skip == 'false' && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
+
+      - name: Log in to GHCR
+        uses: ./.github/actions/ghcr-login
+
+      - name: Get release notes
+        run: make helm-release-notes > .release_notes
+
+      - name: Copy LICENSE and README into chart
+        run: cp LICENSE README.md ${{ env.CHART_DIR }}/
+
+      - name: Package chart
+        run: |
+          mkdir -p dist
+          helm package ${{ env.CHART_DIR }} --destination dist
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign chart package
+        run: |
+          PACKAGE=$(ls dist/*.tgz)
+          cosign sign-blob "$PACKAGE" --bundle "${PACKAGE}.sigstore.json" --yes
+
+      - name: Push chart to GHCR OCI
+        run: helm push dist/*.tgz oci://${{ env.REGISTRY }}/${{ env.CHART_OCI_REPO }}
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          is_prerelease="false"
+          if [[ "${{ needs.detect.outputs.chart_version }}" == *-* ]]; then
+            is_prerelease="true"
+          fi
+          gh release create "helm-v${{ needs.detect.outputs.chart_version }}" \
+            dist/*.tgz \
+            dist/*.sigstore.json \
+            --notes-file .release_notes \
+            --title "helm-v${{ needs.detect.outputs.chart_version }}" \
+            --draft \
+            $([[ "$is_prerelease" == "true" ]] && echo "--prerelease")
