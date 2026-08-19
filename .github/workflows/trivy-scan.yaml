@@ -1,51 +1,53 @@
-name: Trivy
+name: Trivy Scan
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
     paths:
       - "**/*.go"
       - go.mod
       - go.sum
+      - cmd/karpenter-upcloud/Containerfile
       - '.github/workflows/trivy-scan.yaml'
       - '.trivyignore.yaml'
   pull_request:
+    branches:
+      - main
+    paths:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - cmd/karpenter-upcloud/Containerfile
+      - '.github/workflows/trivy-scan.yaml'
+      - '.trivyignore.yaml'
   schedule:
     - cron: '5 5 * * 2'
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   analyze:
     permissions:
-      actions: read
       contents: read
+      actions: read
       security-events: write
-    name: Trivy scan
+      packages: read
+    timeout-minutes: 5
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        with:
-          filters: |
-            source:
-              - '**/*.go'
-              - go.mod
-              - go.sum
-              - '.github/workflows/trivy-scan.yaml'
-              - '.trivyignore.yaml'
+      - if: github.event_name == 'schedule' || github.event_name == 'push'
+        name: Log in to GHCR
+        uses: ./.github/actions/ghcr-login
 
-      - if: steps.filter.outputs.source == 'true' || github.event_name != 'pull_request'
-        name: Run Trivy vulnerability scanner (filesystem)
+      - name: Run Trivy vulnerability scanner (filesystem)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
@@ -56,9 +58,75 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore.yaml'
 
-      - if: steps.filter.outputs.source == 'true' || github.event_name != 'pull_request'
-        name: Upload filesystem scan results to GitHub Security tab
+      - name: Upload filesystem scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           sarif_file: 'trivy-fs-results.sarif'
           category: trivy-fs
+
+      - if: github.event_name == 'pull_request'
+        name: Build image for PR scan
+        uses: aardbol/buildah-build@19b13acaef86fdcd664ee434704193633b5eee8b # v3.0.2
+        id: build-image
+        with:
+          containerfiles: ./cmd/karpenter-upcloud/Containerfile
+          image: karpenter-upcloud
+          tags: latest
+          platforms: linux/amd64
+
+      - if: github.event_name == 'pull_request'
+        name: Export image to tar archive
+        run: podman save -o image.tar karpenter-upcloud:latest
+
+      - if: github.event_name == 'pull_request'
+        name: Run Trivy vulnerability scanner (PR image)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: image.tar
+          format: 'sarif'
+          output: 'trivy-pr-image-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - if: github.event_name == 'pull_request'
+        name: Upload PR image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: 'trivy-pr-image-results.sarif'
+          category: trivy-image
+
+      - if: github.event_name == 'push'
+        name: Run Trivy vulnerability scanner (pushed image)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - if: github.event_name == 'push'
+        name: Upload pushed image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+          category: trivy-image
+
+      - if: github.event_name == 'schedule'
+        name: Run Trivy vulnerability scanner (image)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}:latest'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - if: github.event_name == 'schedule'
+        name: Upload image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+          category: trivy-image

@@ -5,53 +5,48 @@ on:
     branches:
       - main
     paths:
-      - 'charts/**'
+      - 'deploy/helm/**'
       - '.github/workflows/lint-helm.yaml'
   pull_request:
+    branches:
+      - main
     paths:
-      - 'charts/**'
+      - 'deploy/helm/**'
       - '.github/workflows/lint-helm.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   helm-lint:
-    name: helm-lint
+    timeout-minutes: 5
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache helm-unittest plugin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          fetch-depth: 0
+          path: ~/.local/share/helm/plugins/
+          key: helm-unittest-${{ runner.os }}-1.1.1
 
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        with:
-          filters: |
-            helm:
-              - 'charts/**'
-              - '.github/workflows/lint-helm.yaml'
+      - name: Run helm lint and unit tests
+        run: make helm-test
 
-      - if: steps.filter.outputs.helm == 'true'
-        name: Run helm lint
-        run: make helm-lint
-
-      - if: steps.filter.outputs.helm == 'true'
-        name: Run helm unit tests
-        run: make helm-unittest
-
-      - if: steps.filter.outputs.helm == 'true'
-        name: Run kube-linter
+      - name: Run kube-linter
         uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
         with:
-          directory: charts/karpenter-upcloud
-          config: charts/karpenter-upcloud/.kube-linter.yaml
+          directory: deploy/helm
+          config: deploy/helm/.kube-linter.yaml
           format: plain
 
-      - if: steps.filter.outputs.helm == 'true'
-        name: Run kubeconform
+      - name: Run kubeconform
         uses: aardbol/k8s-lint@4676a66f5a37b93f2cf75ecbe498d770b9d7d2ce # v5.1.0
         with:
-          manifests: charts/karpenter-upcloud/
+          manifests: deploy/helm/
           lintType: kubeconform
           kubeconformOpts: -summary -strict -ignore-missing-schemas

@@ -1,11 +1,15 @@
 name: Release Helm chart
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 on:
   push:
     branches:
       - main
     paths:
-      - charts/karpenter-upcloud/Chart.yaml
+      - deploy/helm/Chart.yaml
   workflow_dispatch:
 
 permissions:
@@ -13,7 +17,7 @@ permissions:
   packages: read
 
 env:
-  CHART_DIR: charts/karpenter-upcloud
+  CHART_DIR: deploy/helm
   REGISTRY: ghcr.io
   CHART_OCI_REPO: ${{ github.repository_owner }}/charts
 

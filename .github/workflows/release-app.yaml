@@ -5,8 +5,12 @@ on:
     branches:
       - main
     paths:
-      - charts/karpenter-upcloud/Chart.yaml
+      - deploy/helm/Chart.yaml
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -14,18 +18,18 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  CHART_DIR: charts/karpenter-upcloud
+  CHART_DIR: deploy/helm
+  GO_VERSION: '1.26.6'
 
 jobs:
   detect:
+    timeout-minutes: 5
     runs-on: ubuntu-24.04
     outputs:
       skip: ${{ steps.detect.outputs.skip }}
       app_version: ${{ steps.detect.outputs.app_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
       - name: Detect appVersion bump
         id: detect
@@ -57,6 +61,7 @@ jobs:
   e2e:
     needs: build-image
     if: ${{ needs.detect.outputs.skip == 'false' }}
+    timeout-minutes: 15
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -71,7 +76,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.6'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Live provisioning e2e (${{ matrix.capacityType }})
         env:
