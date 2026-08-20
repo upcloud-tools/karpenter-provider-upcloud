@@ -66,17 +66,11 @@ jobs:
 
       - if: github.event_name == 'pull_request'
         name: Build image for PR scan
-        uses: aardbol/buildah-build@19b13acaef86fdcd664ee434704193633b5eee8b # v3.0.2
-        id: build-image
-        with:
-          containerfiles: ./cmd/karpenter-upcloud/Containerfile
-          image: karpenter-upcloud
-          tags: latest
-          platforms: linux/amd64
+        run: make container-build CONTAINER_REPO=karpenter-provider-upcloud IMAGE_TAG=latest
 
       - if: github.event_name == 'pull_request'
         name: Export image to tar archive
-        run: podman save -o image.tar karpenter-upcloud:latest
+        run: podman save -o image.tar karpenter-provider-upcloud:latest
 
       - if: github.event_name == 'pull_request'
         name: Run Trivy vulnerability scanner (PR image)

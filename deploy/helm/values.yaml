@@ -8,7 +8,7 @@ fullnameOverride: ""
 commonLabels: {}  # @schema additionalProperties: { type: string }
 
 image:  # @schema additionalProperties: false
-  repository: ghcr.io/upcloud-tools/karpenter-upcloud-test
+  repository: ghcr.io/upcloud-tools/karpenter-provider-upcloud
   tag: ""
   pullPolicy: IfNotPresent  # @schema enum: ["Always", "Never", "IfNotPresent"]
 

@@ -87,7 +87,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:0.9.6"
+          value: "ghcr.io/upcloud-tools/karpenter-provider-upcloud:0.9.6"
 
   - it: should use custom image tag when set
     set:
@@ -99,7 +99,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:custom-tag"
+          value: "ghcr.io/upcloud-tools/karpenter-provider-upcloud:custom-tag"
 
   - it: should have correct container name
     set:

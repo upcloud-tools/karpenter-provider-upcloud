@@ -3,7 +3,7 @@ COMMIT = $(shell git log --format="%h" -n 1)
 TREE_STATE = $(shell git diff --quiet && echo 'clean' || echo 'dirty')
 
 GO_VERSION ?= 1.26.6
-CONTAINER_REPO ?= ghcr.io/upcloud-tools/karpenter-upcloud-test
+CONTAINER_REPO ?= ghcr.io/upcloud-tools/karpenter-provider-upcloud
 IMAGE_TAG ?= $(shell git rev-parse HEAD)
 
 HELM_CHART_DIR := deploy/helm
@@ -16,6 +16,12 @@ LDFLAGS := -s -w \
 	-X github.com/upcloud-tools/karpenter-provider-upcloud/internal/version.Commit=$(COMMIT) \
 	-X github.com/upcloud-tools/karpenter-provider-upcloud/internal/version.TreeState=$(TREE_STATE)
 
+# Build container image for linux/amd64 using buildah
+# TAG: version string
+# COMMIT: short commit hash
+# TREE_STATE: "clean" or "dirty" based on git status
+# CONTAINER_REPO: full image name including registry
+# IMAGE_TAG: tag to apply to the built image
 .PHONY: container-build
 container-build:
 	buildah build --platform linux/amd64 \
@@ -25,30 +31,67 @@ container-build:
 		-t $(CONTAINER_REPO):$(IMAGE_TAG) \
 		-f cmd/karpenter-upcloud/Containerfile .
 
+# Push container image to registry, optionally capturing digest
+# CONTAINER_REPO: full image name including registry
+# IMAGE_TAG: tag of the image to push
+# DIGEST_FILE: optional path where the image digest will be written
 .PHONY: push-image
-push-image: container-build
+push-image:
 	@echo "==> Pushing image $(CONTAINER_REPO):$(IMAGE_TAG)"
-	buildah push $(CONTAINER_REPO):$(IMAGE_TAG)
+ifdef DIGEST_FILE
+	buildah push --digestfile "$(DIGEST_FILE)" "$(CONTAINER_REPO):$(IMAGE_TAG)" "docker://$(CONTAINER_REPO):$(IMAGE_TAG)"
+else
+	buildah push "$(CONTAINER_REPO):$(IMAGE_TAG)"
+endif
 
+E2E_TIMEOUT ?= 20m
+E2E_PLAN ?= CLOUDNATIVE-2xCPU-4GB
+E2E_CAPACITY_TYPE ?= on-demand
+E2E_TEST ?= TestLiveCloudProviderCreate
+
+E2E_ENV := UPCLOUD_E2E_PROVISION=1 \
+	UPCLOUD_E2E_PLAN=$(E2E_PLAN) \
+	UPCLOUD_E2E_CAPACITY_TYPE=$(E2E_CAPACITY_TYPE)
+
+# Run end-to-end tests against live UpCloud infrastructure
+# E2E_TIMEOUT: maximum duration for test execution
+# E2E_PLAN: UpCloud server plan to use for testing
+# E2E_CAPACITY_TYPE: capacity type for the server, either "on-demand" or "spot"
+# E2E_TEST: specific test function to run
+.PHONY: test-e2e
+test-e2e:
+	$(E2E_ENV) go test -tags e2e ./test/e2e/ -run $(E2E_TEST) -v -timeout $(E2E_TIMEOUT)
+
+# Run unit tests with race detection
 .PHONY: test
 test:
 	go vet ./...
 	go test -race ./...
 
+# Build the karpenter-upcloud binary
+# CGO_ENABLED: enable/disable CGO compilation
+# GOOS: target operating system
+# GOARCH: target architecture
+# TAG: version string embedded in binary via ldflags
+# COMMIT: commit hash embedded in binary via ldflags
+# TREE_STATE: tree state embedded in binary via ldflags
 .PHONY: build
 build:
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 	go build -ldflags '$(LDFLAGS)' -o bin/karpenter-upcloud ./cmd/karpenter-upcloud
 
+# Run go vet static analysis
 .PHONY: vet
 vet:
 	go vet ./...
 
+# Tidy and verify go modules
 .PHONY: tidy
 tidy:
 	go mod tidy
 	go mod verify
-	
+
+# Stop and delete all karpenter-related servers in UpCloud
 .PHONY: cleanup
 cleanup:
 	upctl server list | awk '$$2 ~ /^karpenter/ {print $$1}' | xargs -r upctl server stop --type hard || true
@@ -56,10 +99,12 @@ cleanup:
 
 HELM_CHART_VERSION ?= $(shell yq .version $(HELM_CHART_DIR)/Chart.yaml)
 
+# Lint the Helm chart
 .PHONY: helm-lint
 helm-lint:
 	helm lint $(HELM_CHART_DIR)
 
+# Run Helm unit tests (installs unittest plugin if needed)
 .PHONY: helm-unittest
 helm-unittest:
 	@if ! helm plugin list | grep -q unittest > /dev/null 2>&1; then \
@@ -67,14 +112,18 @@ helm-unittest:
 	fi
 	helm unittest $(HELM_CHART_DIR)
 
+# Run all Helm tests (lint + unit tests)
 .PHONY: helm-test
 helm-test: helm-lint helm-unittest
 
+# Package the Helm chart into dist/
 .PHONY: helm-package
 helm-package:
 	mkdir -p dist
 	helm package $(HELM_CHART_DIR) --destination dist
 
+# Extract release notes for the current chart version from CHANGELOG.md
+# HELM_CHART_VERSION: auto-detected from Chart.yaml version field
 .PHONY: helm-release-notes
 helm-release-notes:
 	@awk \
@@ -83,10 +132,12 @@ helm-release-notes:
 		flag { if ( n ) { print prev; } n++; prev = $$0 }' \
 		$(HELM_CHART_DIR)/CHANGELOG.md
 
+# Lint Kubernetes manifests with kube-linter
 .PHONY: kube-lint
 kube-lint:
 	kube-linter lint --config $(HELM_CHART_DIR)/.kube-linter.yaml $(HELM_CHART_DIR)
 
+# Validate Kubernetes manifests with kubeconform
 .PHONY: k8s-lint
 k8s-lint:
 	helm template test-release $(HELM_CHART_DIR) > /tmp/karpenter-upcloud-rendered.yaml

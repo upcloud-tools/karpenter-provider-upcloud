@@ -44,17 +44,11 @@ jobs:
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-          UPCLOUD_E2E_PROVISION: "1"
-          UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
-          UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
-        run: go test -tags e2e ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
+        run: make test-e2e E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
 
       - name: Node claim TTL e2e (${{ matrix.capacityType }})
         if: ${{ github.event.inputs.nodeclaimttl-tests == 'yes' }}
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-          UPCLOUD_E2E_PROVISION: "1"
-          UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
-          UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
-        run: go test -tags e2e ./test/e2e/ -run TestLiveNodeClaimTTL -v -timeout 20m
+        run: make test-e2e E2E_TEST=TestLiveNodeClaimTTL E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"

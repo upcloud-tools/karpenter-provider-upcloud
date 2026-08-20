@@ -61,9 +61,7 @@ jobs:
           IMAGE_TAG: ${{ inputs.tags }}
         run: |
           DIGESTFILE=$(mktemp)
-          buildah push --digestfile "${DIGESTFILE}" \
-            "${CONTAINER_REPO}:${IMAGE_TAG}" \
-            "docker://${CONTAINER_REPO}:${IMAGE_TAG}"
+          make push-image DIGEST_FILE="${DIGESTFILE}"
           echo "digest=$(cat "${DIGESTFILE}")" >> "${GITHUB_OUTPUT}"
 
       - name: Build summary
