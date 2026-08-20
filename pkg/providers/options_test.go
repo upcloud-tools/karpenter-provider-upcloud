@@ -8,7 +8,7 @@ import (
 func TestNewOptionsFromEnvironmentDefaults(t *testing.T) {
 	t.Setenv("UPCLOUD_TOKEN", "tok")
 	t.Setenv("UPCLOUD_KUBERNETES_CLUSTER_ID", "cluster")
-	t.Setenv("UPCLOUD_REPAIR_TOLERATION", "")
+	t.Setenv("UPCLOUD_REPAIR_TOLERATION", "30m")
 
 	opts, err := NewOptionsFromEnvironment()
 	if err != nil {
@@ -18,7 +18,17 @@ func TestNewOptionsFromEnvironmentDefaults(t *testing.T) {
 		t.Errorf("unexpected base options: %+v", opts)
 	}
 	if opts.RepairToleration != 30*time.Minute {
-		t.Errorf("expected default 30m toleration, got %v", opts.RepairToleration)
+		t.Errorf("expected 30m toleration, got %v", opts.RepairToleration)
+	}
+}
+
+func TestNewOptionsFromEnvironmentMissingRepairToleration(t *testing.T) {
+	t.Setenv("UPCLOUD_TOKEN", "tok")
+	t.Setenv("UPCLOUD_KUBERNETES_CLUSTER_ID", "cluster")
+	t.Setenv("UPCLOUD_REPAIR_TOLERATION", "")
+
+	if _, err := NewOptionsFromEnvironment(); err == nil {
+		t.Fatal("expected error for missing UPCLOUD_REPAIR_TOLERATION")
 	}
 }
 

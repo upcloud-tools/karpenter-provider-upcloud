@@ -1,0 +1,123 @@
+# Overrides the chart name.
+nameOverride: ""
+
+# Overrides the full name.
+fullnameOverride: ""
+
+# Common labels added to all resources.
+commonLabels: {}  # @schema additionalProperties: { type: string }
+
+image:  # @schema additionalProperties: false
+  repository: ghcr.io/upcloud-tools/karpenter-upcloud-test
+  tag: ""
+  pullPolicy: IfNotPresent  # @schema enum: ["Always", "Never", "IfNotPresent"]
+
+# Image pull secrets for registry authentication.
+imagePullSecrets: []  # @schema items: { type: object, properties: { name: { type: string } }, required: ["name"] }
+
+# Karpenter provider configuration.
+config:  # @schema additionalProperties: false
+  # Authentication configuration. (required)
+  auth:  # @schema additionalProperties: false
+    # Reference an existing secret, or have the chart create one. Mutually exclusive with auth.token.
+    existingSecret: ""
+    # Key within the secret that holds the UpCloud API token.
+    tokenKey: token  # @schema type: string
+    # UpCloud API token. Mutually exclusive with auth.existingSecret.
+    token: ""
+
+  # Cluster UUID (required).
+  clusterUUID: ""  # @schema type: string, anyOf: [{ pattern: ^0d[0-9a-f]{6}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ }, { maxLength: 0 }]
+
+  # OS template UUID (defaults to UKS Debian 13).
+  templateUUID: 01000000-0000-4000-8000-000160150100  # @schema type: string, pattern: ^01[0-9a-f]{6}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+
+  # Node claim TTL uses absolute TTL values to determine when to expire node claims. This plays better
+  # with UpCloud's hourly billing cycle, and makes sure node claims are cleaned up before the hour when other conditions are met.
+  # NOTE: Alpha feature, expect unstable behavior.
+  nodeclaimTTL:  # @schema additionalProperties: false
+    enabled: false
+    ttl: 50m  # @schema type: string
+
+  # Repair toleration duration for unhealthy nodes.
+  repairToleration: 30m  # @schema type: string
+
+  # Include STARTER plans in instance type discovery.
+  allowStarterPlans: false
+
+  # Include PREMIUM plans in instance type discovery.
+  allowPremiumPlans: false
+
+resources: {}  # @schema additionalProperties: false
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 256Mi
+
+# Extra environment variables for the container.
+extraEnv: []  # @schema items: { type: object }
+
+podLabels: {}  # @schema additionalProperties: { type: string }
+
+podAnnotations: {}  # @schema additionalProperties: { type: string }
+
+# Container security context.
+securityContext:  # @schema additionalProperties: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+
+podSecurityContext:  # @schema additionalProperties: false
+  runAsNonRoot: true
+  runAsUser: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Priority class name for the pod.
+priorityClassName: system-cluster-critical  # @schema type: string
+
+# Node selector for pod scheduling.
+nodeSelector: {}  # @schema additionalProperties: { type: string }
+
+# Tolerations for pod scheduling.
+tolerations: []  # @schema items: { type: object }
+
+affinity:  # @schema additionalProperties: false
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: DoesNotExist
+
+topologySpreadConstraints: []  # @schema items: { type: object }
+
+terminationGracePeriodSeconds: 30  # @schema type: [integer, null]; minimum: 0
+
+revisionHistoryLimit: null  # @schema type: [integer, null]; minimum: 0
+
+livenessProbe:  # @schema additionalProperties: false
+  httpGet:
+    path: /healthz
+    port: 8081
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:  # @schema additionalProperties: false
+  httpGet:
+    path: /readyz
+    port: 8081
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+podDisruptionBudget:  # @schema additionalProperties: false
+  enabled: false
+  maxUnavailable: null  # @schema type: [integer, string, null]; minimum: 0
+  minAvailable: null  # @schema type: [integer, string, null]; minimum: 0
+
+# Extra Kubernetes objects to deploy.
+# Supports Go template expressions.
+extraObjects: []  # @schema items: { type: object }

@@ -1,0 +1,202 @@
+suite: default install
+tests:
+  - it: should generate all default resources
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    asserts:
+      - isKind:
+          of: Deployment
+        template: deployment.yaml
+      - isKind:
+          of: ServiceAccount
+        template: serviceaccount.yaml
+      - documentIndex: 0
+        isKind:
+          of: ClusterRole
+        template: rbac.yaml
+      - documentIndex: 1
+        isKind:
+          of: ClusterRoleBinding
+        template: rbac.yaml
+
+  - it: should NOT generate PDB or extra objects by default
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: pdb.yaml
+      - hasDocuments:
+          count: 0
+        template: extra-objects.yaml
+      - hasDocuments:
+          count: 0
+        template: secret.yaml
+
+  - it: should have correct deployment name
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-karpenter-upcloud
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have correct labels on resources
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+
+  - it: should use selectorLabels for matchLabels
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  - it: should have correct container image
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:0.9.6"
+
+  - it: should use custom image tag when set
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      image:
+        tag: "custom-tag"
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/upcloud-tools/karpenter-upcloud-test:custom-tag"
+
+  - it: should have correct container name
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: karpenter
+
+  - it: should have liveness and readiness probes
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 8081
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /readyz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 8081
+
+  - it: should have priorityClassName set
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical
+
+  - it: should have default env vars for repair, starter, and premium plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_REPAIR_TOLERATION
+            value: "30m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_STARTER_PLANS
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_PREMIUM_PLANS
+            value: "false"
+
+  - it: should allow overriding repairToleration
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        repairToleration: "1h"
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_REPAIR_TOLERATION
+            value: "1h"
+
+  - it: should allow enabling starter plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        allowStarterPlans: true
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_STARTER_PLANS
+            value: "true"
+
+  - it: should allow enabling premium plans
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+        allowPremiumPlans: true
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPCLOUD_ALLOW_PREMIUM_PLANS
+            value: "true"

@@ -1,0 +1,70 @@
+suite: extra objects
+tests:
+  - it: should not render anything when extraObjects is empty
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: extra-objects.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a single extra object
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      extraObjects:
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: my-namespace
+    template: extra-objects.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Namespace
+      - equal:
+          path: metadata.name
+          value: my-namespace
+
+  - it: should render multiple extra objects
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      extraObjects:
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ns-one
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ns-two
+    template: extra-objects.yaml
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: ns-one
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: ns-two
+
+  - it: should evaluate tpl expressions in extra objects
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      extraObjects:
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ .Values.nsName }}"
+      nsName: extra-ns
+    template: extra-objects.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: extra-ns

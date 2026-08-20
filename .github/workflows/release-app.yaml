@@ -1,0 +1,150 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - deploy/helm/Chart.yaml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  CHART_DIR: deploy/helm
+  GO_VERSION: '1.26.6'
+
+jobs:
+  detect:
+    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ steps.detect.outputs.skip }}
+      app_version: ${{ steps.detect.outputs.app_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Detect appVersion bump
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          app_version=$(yq .appVersion "$CHART_DIR/Chart.yaml")
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+
+          if gh release view "$app_version" > /dev/null 2>&1; then
+            echo "Release $app_version already exists. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+  build-image:
+    needs: detect
+    if: ${{ needs.detect.outputs.skip == 'false' }}
+    uses: ./.github/workflows/_reusable-build.yaml
+    with:
+      tags: ${{ github.sha }}
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+  e2e:
+    needs: build-image
+    if: ${{ needs.detect.outputs.skip == 'false' }}
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - capacityType: on-demand
+            plan: CLOUDNATIVE-2xCPU-4GB
+          - capacityType: spot
+            plan: GPU-SPOT-8xCPU-64GB-1xL4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Live provisioning e2e (${{ matrix.capacityType }})
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+          UPCLOUD_E2E_PROVISION: "1"
+          UPCLOUD_E2E_PLAN: ${{ matrix.plan }}
+          UPCLOUD_E2E_CAPACITY_TYPE: ${{ matrix.capacityType }}
+        run: go test -tags e2e ./test/e2e/ -run TestLiveCloudProviderCreate -v -timeout 20m
+
+  release:
+    needs: [detect, build-image, e2e]
+    if: ${{ needs.detect.outputs.skip == 'false' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
+
+      - name: Log in to GHCR
+        uses: ./.github/actions/ghcr-login
+
+      - name: Tag release
+        run: |
+          SRC="${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}"
+          DST="${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.detect.outputs.app_version }}"
+          LATEST="${{ env.REGISTRY }}/${{ github.repository }}:latest"
+          oras copy "$SRC" "$DST"
+          oras copy "$SRC" "$LATEST"
+
+      - name: Setup Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the container image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}:${{ needs.detect.outputs.app_version }}"
+          DIGEST=$(oras resolve "$IMAGE")
+          cosign sign --yes "${{ env.REGISTRY }}/${{ github.repository }}@${DIGEST}"
+
+      - name: Get release notes
+        run: |
+          version="${{ needs.detect.outputs.app_version }}"
+          awk -v ver="$version" '
+            /^## \[/ { if (found) exit }
+            $0 ~ "\\[" ver "\\]" { found=1; next }
+            found { if (n) print prev; n++; prev=$0 }
+          ' CHANGELOG.md > .release_notes
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ needs.detect.outputs.app_version }}" \
+            --notes-file .release_notes \
+            --title "${{ needs.detect.outputs.app_version }}" \
+            --draft
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.detect.outputs.app_version }}"
+          git push origin "${{ needs.detect.outputs.app_version }}"

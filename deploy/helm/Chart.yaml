@@ -1,0 +1,28 @@
+apiVersion: v2
+name: karpenter-upcloud
+description: Karpenter provider for UpCloud
+type: application
+version: "1.0.0"
+appVersion: "0.9.6"
+kubeVersion: ">=1.31.0"
+keywords:
+  - karpenter
+  - upcloud
+  - autoscaling
+  - kubernetes
+home: https://github.com/upcloud-tools/karpenter-provider-upcloud
+sources:
+  - https://github.com/upcloud-tools/karpenter-provider-upcloud
+maintainers:
+  - name: Leonardo (aardbol)
+    url: https://github.com/aardbol
+annotations:
+  artifacthub.io/maintainers: |
+    - name: aardbol
+  artifacthub.io/category: monitoring
+  artifacthub.io/license: EUPL-1.2
+  artifacthub.io/links: |
+    - name: Support
+      url: https://github.com/upcloud-tools/karpenter-provider-upcloud/issues
+  artifacthub.io/changes: |
+    - "Initial full release with schema validation"

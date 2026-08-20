@@ -1,0 +1,101 @@
+suite: security context
+tests:
+  - it: should render default podSecurityContext
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+
+  - it: should render default container securityContext
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should allow overriding podSecurityContext
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      podSecurityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: should allow overriding container securityContext
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      securityContext:
+        allowPrivilegeEscalation: true
+        capabilities:
+          drop: ["ALL"]
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
+
+  - it: should allow minimal securityContext override
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      securityContext:
+        runAsNonRoot: true
+      podSecurityContext:
+        runAsUser: 1000
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+
+  - it: should expose health and metrics ports
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http-metrics
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http-health
+            containerPort: 8081
+            protocol: TCP

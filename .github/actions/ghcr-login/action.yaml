@@ -1,0 +1,10 @@
+name: GHCR Login
+description: Log in to GitHub Container Registry using buildah
+
+runs:
+  using: composite
+  steps:
+    - name: Log in to GHCR
+      shell: bash
+      run: |
+        echo '${{ github.token }}' | buildah login --compat-auth-file ~/.docker/config.json -u '${{ github.actor }}' --password-stdin '${{ env.REGISTRY || 'ghcr.io' }}'

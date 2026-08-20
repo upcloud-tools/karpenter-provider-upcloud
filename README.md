@@ -139,8 +139,7 @@ instance type is found and the pod stays unscheduled. Spot pricing is taken from
 
 This provider ships an optional absolute-lifetime TTL controller for NodeClaims as an alternative to Karpenter's built-in consolidation, to make maximum and optimal use of UpCloud's hourly billing cycle. The controller is an **alpha** release. The core logic and unit tests are solid, but e2e coverage against live clusters still needs more testing.
 
-The controller is disabled by default. Enable it by setting `UPCLOUD_NODECLAIM_TTL_ENABLED=true` on the operator.
-The TTL defaults to 50minutes and is configurable via `UPCLOUD_NODECLAIM_TTL` (any Go duration, e.g. `30m`, `1h`).
+The controller is disabled by default. Enable it by setting `UPCLOUD_NODECLAIM_TTL` to a duration value (e.g. `50m`, `1h`) on the operator.
 
 When the TTL controller is active, set your NodePool's `disruption.consolidationPolicy` to `Never` to prevent Karpenter's built-in
 disruption from fighting with the TTL eviction.
@@ -168,10 +167,9 @@ The toleration defaults to **30 minutes** and is configurable via `UPCLOUD_REPAI
 |----------|-------------|
 | `UPCLOUD_TOKEN` | UpCloud API token |
 | `UPCLOUD_KUBERNETES_CLUSTER_ID` | UKS cluster UUID |
-| `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: Debian 13) |
+| `UPCLOUD_TEMPLATE_UUID` | OS template UUID for node boot disk (optional, default: UKS Debian 13) |
 | `UPCLOUD_REPAIR_TOLERATION` | How long a `NotReady`/`Unknown` node is tolerated before Karpenter recycles it (optional, default: `30m`) |
-| `UPCLOUD_NODECLAIM_TTL_ENABLED` | Enable the alpha NodeClaim TTL controller (optional, default: unset = disabled) |
-| `UPCLOUD_NODECLAIM_TTL` | Absolute lifetime for NodeClaims (optional, default: `50m`) |
+| `UPCLOUD_NODECLAIM_TTL` | Enable NodeClaim TTL controller by setting a duration (optional, default: unset = disabled). Defines the absolute lifetime for NodeClaims (e.g. `50m`, `1h`) (ALPHA) |
 
 #### Required UpCloud API permissions
 
@@ -203,7 +201,7 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 │       ├── instance/           ← server lifecycle (Create/Delete/Get/List)
 │       ├── instancetypes/      ← plan discovery + cached pricing
 │       └── userdata/           ← cloud-init generation
-├── charts/karpenter-upcloud/  ← Helm chart
+├── deploy/helm/               ← Helm chart
 ├── examples/                  ← sample CRDs
 ├── Makefile
 ```

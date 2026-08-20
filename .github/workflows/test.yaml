@@ -1,50 +1,45 @@
-name: Unit Tests
+name: Test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
     paths:
-      - 'internal/**'
-      - 'cmd/**'
-      - 'go.*'
-      - 'test/**'
+      - '**/*.go'
+      - go.mod
+      - go.sum
       - '.github/workflows/test.yaml'
   pull_request:
-
-env:
-  GO_VERSION: '1.26.6'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
+    paths:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+      - '.github/workflows/test.yaml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  GO_VERSION: '1.26.6'
+
 jobs:
   test:
+    timeout-minutes: 5
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        with:
-          filters: |
-            go:
-              - 'internal/**'
-              - 'cmd/**'
-              - 'go.*'
-              - 'test/**'
-              - '.github/workflows/test.yaml'
-
-      - if: steps.filter.outputs.go == 'true'
+      - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - if: steps.filter.outputs.go == 'true'
-        name: Test
-        run: go test -v -race -count=1 ./...
+      - name: Run Go unit tests
+        run: make test
