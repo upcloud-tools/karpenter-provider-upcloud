@@ -51,7 +51,7 @@ jobs:
 
           echo "skip_release=false" >> "$GITHUB_OUTPUT"
 
-          if gh release view "$app_version" > /dev/null 2>&1; then
+          if gh release view "v$app_version" > /dev/null 2>&1; then
             echo "app_version_bumped=false" >> "$GITHUB_OUTPUT"
           else
             echo "app_version_bumped=true" >> "$GITHUB_OUTPUT"
