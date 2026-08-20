@@ -6,6 +6,7 @@
 
 Karpenter provider implementation for [UpCloud](https://upcloud.com), enabling efficient, just-in-time node autoscaling.
 
+> [!IMPORTANT]
 > **Beta** — in working state but not yet production-ready. Core provisioning, scale-from-zero,
 > drift detection, node repair, GPU scheduling, and spot capacity all work; broader end-to-end
 > coverage against live clusters is still being expanded.
