@@ -131,5 +131,6 @@ jobs:
             dist/*.sigstore.json \
             --notes-file .release_notes \
             --title "helm-v${{ needs.detect.outputs.chart_version }}" \
+            --target ${{ github.sha }} \
             --draft \
             $([[ "$is_prerelease" == "true" ]] && echo "--prerelease")
