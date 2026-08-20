@@ -121,6 +121,20 @@ jobs:
           DIGEST=$(oras resolve "$IMAGE")
           cosign sign --yes "${{ env.REGISTRY }}/${{ github.repository }}@${DIGEST}"
 
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository }}:v${{ needs.detect.outputs.app_version }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SBOM
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}:v${{ needs.detect.outputs.app_version }}"
+          cosign attest --yes --type spdx --predicate sbom.spdx.json "$IMAGE"
+
       - name: Get release notes
         run: |
           version="${{ needs.detect.outputs.app_version }}"
