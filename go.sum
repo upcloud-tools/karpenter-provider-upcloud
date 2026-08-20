@@ -4,8 +4,10 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Pallinder/go-randomdata v1.2.0 h1:DZ41wBchNRb/0GfsePLiSwb0PHZmT67XY00lCDlaYPg=
 github.com/Pallinder/go-randomdata v1.2.0/go.mod h1:yHmJgulpD2Nfrm0cR9tI/+oAgRqCQQixsA8HyRZfV9Y=
-github.com/UpCloudLtd/upcloud-go-api/v8 v8.38.0 h1:iWgTz32bgXtX1ouFIA3JehBXOvUWnRJsH9CTaX5SzcY=
-github.com/UpCloudLtd/upcloud-go-api/v8 v8.38.0/go.mod h1:sxG94uNhC31OQH+zK0RhZjVj+PdkhObsNAt5bvq2J8c=
+github.com/UpCloudLtd/httplog v0.0.0-20260624214043-23b0cab8e085 h1:WKK9DZI0ZQikQjhHk+/X2HWKxFrENOvseaDysZE8nPs=
+github.com/UpCloudLtd/httplog v0.0.0-20260624214043-23b0cab8e085/go.mod h1:79ZjkJrYkl540hQ5Fy7XkRfR7109HGMTzHdVEkynTqw=
+github.com/UpCloudLtd/upcloud-go-api/v8 v8.40.0 h1:MvG4zuzKb0WXruxDebF1OgFXZ+zxPH2MBa0jHDQ9dBo=
+github.com/UpCloudLtd/upcloud-go-api/v8 v8.40.0/go.mod h1:ex/UPAIOJxtzwe0DqX2gwCC2/oce7pBqg78pB+YnH9k=
 github.com/aardbol/karpenter v0.0.0-20260818162253-b5f0a3cab686 h1:lYsx+t4LxDIrm38hPnN7kUhyT36wLZM1OKa5ORVtdgw=
 github.com/aardbol/karpenter v0.0.0-20260818162253-b5f0a3cab686/go.mod h1:QDsHrYQ75sBRNxaqcw5BdLT8tCdNLrZBAY7ByRyn0/M=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
