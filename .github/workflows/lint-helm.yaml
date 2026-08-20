@@ -44,9 +44,15 @@ jobs:
           config: deploy/helm/.kube-linter.yaml
           format: plain
 
+      - name: Render Helm chart
+        run: |
+          helm template ci-test deploy/helm/ \
+            --set config.clusterUUID=0d000000-0000-4000-8000-000160150100 \
+            > /tmp/rendered-manifests.yaml
+
       - name: Run kubeconform
         uses: aardbol/k8s-lint@4676a66f5a37b93f2cf75ecbe498d770b9d7d2ce # v5.1.0
         with:
-          manifests: deploy/helm/
+          manifests: /tmp/rendered-manifests.yaml
           lintType: kubeconform
           kubeconformOpts: -summary -strict -ignore-missing-schemas
