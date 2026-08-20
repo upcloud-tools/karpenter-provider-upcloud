@@ -90,6 +90,7 @@ jobs:
           category: trivy-image
 
       - if: github.event_name == 'push'
+        id: scan-pushed-image
         name: Run Trivy vulnerability scanner (pushed image)
         continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -100,7 +101,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
 
-      - if: github.event_name == 'push'
+      - if: github.event_name == 'push' && steps.scan-pushed-image.outcome == 'success'
         name: Upload pushed image scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
@@ -108,6 +109,7 @@ jobs:
           category: trivy-image
 
       - if: github.event_name == 'schedule'
+        id: scan-scheduled-image
         name: Run Trivy vulnerability scanner (image)
         continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -118,7 +120,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
 
-      - if: github.event_name == 'schedule'
+      - if: github.event_name == 'schedule' && steps.scan-scheduled-image.outcome == 'success'
         name: Upload image scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
