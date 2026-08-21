@@ -1,5 +1,10 @@
 # Helm chart changelog
 
+## [1.0.2] - 2026-08-22
+
+### Added
+- Dedicated chart `README.md`
+
 ## [1.0.1] - 2026-08-21
 
 ### Changed
