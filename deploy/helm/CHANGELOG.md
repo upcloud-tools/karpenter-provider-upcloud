@@ -1,5 +1,10 @@
 # Helm chart changelog
 
+## [1.0.1] - 2026-08-21
+
+### Changed
+- Removed unsupported artifacthub category
+
 ## [1.0.0] - 2026-08-19
 
 ### Breaking changes
