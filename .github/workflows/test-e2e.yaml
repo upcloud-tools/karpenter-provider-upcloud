@@ -1,0 +1,31 @@
+name: E2E tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      nodeclaimttl-tests:
+        type: choice
+        description: Run node claim TTL tests
+        default: 'no'
+        options:
+          - 'yes'
+          - 'no'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  provisioning:
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    secrets: inherit
+
+  nodeclaimttl:
+    if: ${{ github.event.inputs.nodeclaimttl-tests == 'yes' }}
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      e2e_test: TestLiveNodeClaimTTL
+    secrets: inherit

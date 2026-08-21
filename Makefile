@@ -132,6 +132,16 @@ helm-release-notes:
 		flag { if ( n ) { print prev; } n++; prev = $$0 }' \
 		$(HELM_CHART_DIR)/CHANGELOG.md
 
+# Extract release notes for a given version from CHANGELOG.md
+# TAG: version to extract notes for (default: git describe --tags)
+.PHONY: release-notes
+release-notes:
+	@awk -v ver="$(TAG)" ' \
+		/^## \[/ { if (found) exit } \
+		$$0 ~ "\\[" ver "\\]" { found=1; next } \
+		found { if (n) print prev; n++; prev=$$0 }' \
+		CHANGELOG.md
+
 # Lint Kubernetes manifests with kube-linter
 .PHONY: kube-lint
 kube-lint:

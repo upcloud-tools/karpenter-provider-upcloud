@@ -1,0 +1,34 @@
+on:
+  workflow_call:
+    inputs:
+      e2e_test:
+        required: false
+        type: string
+        default: TestLiveCloudProviderCreate
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - capacityType: on-demand
+            plan: CLOUDNATIVE-2xCPU-4GB
+          - capacityType: spot
+            plan: GPU-SPOT-8xCPU-64GB-1xL4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Live e2e (${{ matrix.capacityType }})
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+        run: make test-e2e E2E_TEST="${{ inputs.e2e_test }}" E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"

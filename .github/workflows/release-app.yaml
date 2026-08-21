@@ -7,6 +7,11 @@ on:
     paths:
       - deploy/helm/Chart.yaml
   workflow_dispatch:
+    inputs:
+      skip-e2e:
+        description: Skip e2e tests
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}
@@ -25,26 +30,11 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-24.04
     outputs:
-      skip: ${{ steps.detect.outputs.skip }}
+      skip: ${{ steps.detect.outputs.app_release_exists }}
       app_version: ${{ steps.detect.outputs.app_version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Detect appVersion bump
-        id: detect
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          app_version=$(yq .appVersion "$CHART_DIR/Chart.yaml")
-          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
-
-          if gh release view "v$app_version" > /dev/null 2>&1; then
-            echo "Release v$app_version already exists. Skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - id: detect
+        uses: ./.github/actions/detect-versions
 
   build-image:
     needs: detect
@@ -59,33 +49,17 @@ jobs:
 
   e2e:
     needs: build-image
-    if: ${{ needs.detect.outputs.skip == 'false' }}
-    timeout-minutes: 15
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - capacityType: on-demand
-            plan: CLOUDNATIVE-2xCPU-4GB
-          - capacityType: spot
-            plan: GPU-SPOT-8xCPU-64GB-1xL4
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Live provisioning e2e (${{ matrix.capacityType }})
-        env:
-          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
-          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-        run: make test-e2e E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
+    if: needs.detect.outputs.skip == 'false' && !inputs['skip-e2e']
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    secrets: inherit
 
   release:
     needs: [detect, build-image, e2e]
-    if: ${{ needs.detect.outputs.skip == 'false' }}
+    if: >-
+      always() &&
+      needs.detect.outputs.skip == 'false' &&
+      needs.build-image.result == 'success' &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -124,7 +98,6 @@ jobs:
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ env.REGISTRY }}/${{ github.repository }}:v${{ needs.detect.outputs.app_version }}
-          format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: false
           upload-release-assets: false
@@ -132,16 +105,11 @@ jobs:
       - name: Attest SBOM
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ github.repository }}:v${{ needs.detect.outputs.app_version }}"
-          cosign attest --yes --type spdx --predicate sbom.spdx.json "$IMAGE"
+          DIGEST=$(oras resolve "$IMAGE")
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "${{ env.REGISTRY }}/${{ github.repository }}@${DIGEST}"
 
       - name: Get release notes
-        run: |
-          version="${{ needs.detect.outputs.app_version }}"
-          awk -v ver="$version" '
-            /^## \[/ { if (found) exit }
-            $0 ~ "\\[" ver "\\]" { found=1; next }
-            found { if (n) print prev; n++; prev=$0 }
-          ' CHANGELOG.md > .release_notes
+        run: make release-notes TAG="${{ needs.detect.outputs.app_version }}" > .release_notes
 
       - name: Create release
         env:
