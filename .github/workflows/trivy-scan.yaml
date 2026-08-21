@@ -38,7 +38,7 @@ jobs:
       actions: read
       security-events: write
       packages: read
-    uses: upcloud-tools/gha-actions/.github/workflows/trivy.yaml@6666b24558f9c6f4acbf12f5e186b81351f20ffb
+    uses: upcloud-tools/gha-actions/.github/workflows/trivy.yaml@1dd7497095dbde7e8ae1b5f2afdad0a388821b74
     with:
       image_repo: karpenter-provider-upcloud
     secrets: inherit

@@ -33,5 +33,5 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: upcloud-tools/gha-actions/.github/workflows/codeql-go.yaml@6666b24558f9c6f4acbf12f5e186b81351f20ffb
+    uses: upcloud-tools/gha-actions/.github/workflows/codeql-go.yaml@1dd7497095dbde7e8ae1b5f2afdad0a388821b74
     secrets: inherit
