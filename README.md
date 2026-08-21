@@ -145,6 +145,7 @@ The controller is disabled by default. Enable it by setting `UPCLOUD_NODECLAIM_T
 When the TTL controller is active, set your NodePool's `disruption.consolidationPolicy` to `Never` to prevent Karpenter's built-in
 disruption from fighting with the TTL eviction.
 
+> [!NOTE]
 > **Alpha** — opt-in only. Help test it by running the e2e suite with
 > `UPCLOUD_E2E_PROVISION=1 go test -tags e2e ./test/e2e/ -run TestLiveNodeClaimTTL -v -timeout 20m`.
 > Bug reports and fixes are very welcome.
