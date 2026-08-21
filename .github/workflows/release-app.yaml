@@ -33,8 +33,14 @@ jobs:
       skip: ${{ steps.detect.outputs.app_release_exists }}
       app_version: ${{ steps.detect.outputs.app_version }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
       - id: detect
         uses: ./.github/actions/detect-versions
+        with:
+          app-version-prefix: "v"
 
   build-image:
     needs: detect
@@ -70,6 +76,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          submodules: true
 
       - name: Setup ORAS
         uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
