@@ -5,6 +5,8 @@ metadata:
 spec:
   zone: de-fra1
   plan: CLOUDNATIVE-2xCPU-4GB
-  # Optional: root disk size (GB, default 20) and tier (standard|maxiops|hdd, default standard).
-  storageGB: 20
-  storageTier: standard
+  # Optional: root disk configuration.
+  storage:
+    size: 20          # default 20 (GB)
+    tier: standard    # standard|maxiops|hdd, default standard
+    encrypted: false  # optional, enables encryption at rest, default false

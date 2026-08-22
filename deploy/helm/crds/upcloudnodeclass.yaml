@@ -27,12 +27,17 @@ spec:
                   type: string
                 plan:
                   type: string
-                storageGB:
-                  type: integer
-                  minimum: 10
-                storageTier:
-                  type: string
-                  enum: [maxiops, standard, hdd]
+                storage:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      minimum: 10
+                    tier:
+                      type: string
+                      enum: [maxiops, standard, hdd]
+                    encrypted:
+                      type: boolean
                 sshKeys:
                   type: array
                   items:

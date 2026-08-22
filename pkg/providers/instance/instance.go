@@ -3,12 +3,13 @@ package instance
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
+
+	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
 )
 
 const managedLabelKey = "managed_by"
@@ -37,7 +38,7 @@ func NewProvider(svc service.Server, templateUUID, networkUUID, clusterID, clust
 
 // Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects
 // userdata (containing kubelet config and TLS certs), and applies the managed marker label.
-func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storageGB int, storageTier string) (*upcloud.ServerDetails, error) {
+func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storage *v1alpha1.StorageSpec) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -56,6 +57,19 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
 	}
 
+	storageSizeGB := 20
+	storageTier := string(upcloud.StorageTierStandard)
+	storageEncrypted := false
+	if storage != nil {
+		if storage.Size > 0 {
+			storageSizeGB = storage.Size
+		}
+		if storage.Tier != "" {
+			storageTier = string(storage.Tier)
+		}
+		storageEncrypted = storage.Encrypted != nil && *storage.Encrypted
+	}
+
 	createReq := &request.CreateServerRequest{
 		Labels:   labelSlice,
 		Zone:     zone,
@@ -64,11 +78,12 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 		Plan:     plan,
 		StorageDevices: request.CreateServerStorageDeviceSlice{
 			{
-				Action:  "clone",
-				Storage: p.templateUUID,
-				Title:   hostname + "-root",
-				Tier:    storageTier,
-				Size:    storageGB,
+				Action:    "clone",
+				Storage:   p.templateUUID,
+				Title:     hostname + "-root",
+				Tier:      storageTier,
+				Size:      storageSizeGB,
+				Encrypted: upcloud.FromBool(storageEncrypted),
 			},
 		},
 		Networking: &request.CreateServerNetworking{

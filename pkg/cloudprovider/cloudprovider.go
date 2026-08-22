@@ -132,16 +132,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		return nil, fmt.Errorf("generating userdata: %w", err)
 	}
 
-	storageGB := nodeClass.Spec.StorageGB
-	if storageGB <= 0 {
-		storageGB = defaultStorageGB
-	}
-	storageTier := string(nodeClass.Spec.StorageTier)
-	if storageTier == "" {
-		storageTier = string(upcloud.StorageTierStandard)
-	}
-
-	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, labels, storageGB, storageTier)
+	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, labels, nodeClass.Spec.Storage)
 	if err != nil {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("creating server: %w", err))
 	}

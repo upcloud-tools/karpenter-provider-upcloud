@@ -85,7 +85,7 @@ This provider integrates Karpenter with UpCloud's compute API to provision indiv
 When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.upcloud.com/nodeclass-hash`).
 On every reconciliation `IsDrifted()` compares that stored hash against the live `UpCloudNodeClass`. If they differ, the NodeClaim is marked drifted and Karpenter cordons, drains, and terminates it so a replacement is launched with the new config.
 
-The following fields trigger drift when changed: `zone`, `plan`, `storageGB`, `storageTier`, `sshKeys`, `kubeletArgs`, `labels`, and `taints`.
+The following fields trigger drift when changed: `zone`, `plan`, `storage`, `sshKeys`, `kubeletArgs`, `labels`, and `taints`.
 
 Nodes created before drift detection existed carry no hash annotation and are left untouched to avoid disrupting running workloads.
 
@@ -104,14 +104,18 @@ Opt in to additional families with environment variables on the provider:
 | `UPCLOUD_ALLOW_PREMIUM_PLANS` | Also include `PREMIUM-*` plans (e.g. `true`). |
 
 > GPU plans (`GPU-*` / `GPU-SPOT-*`) are included by default and advertise `nvidia.com/gpu` capacity, so pods requesting GPU resources schedule onto them. The GPU device plugin must be installed in the cluster for the resource to be consumable on the node.
-> `CLOUDNATIVE-*` / GPU plans report `storage_size: 0`; the node boot disk is still provisioned from the configurable `storageGB` (default 20GB).
+> `CLOUDNATIVE-*` / GPU plans report `storage_size: 0`; the node boot disk is still provisioned from the configurable `storage.size` (default 20GB).
 
 ### Node storage
 
-Each node gets a single root disk cloned from the OS template. The size and tier are configured per `UpCloudNodeClass`:
+Each node gets a single root disk cloned from the OS template. The storage configuration is set per `UpCloudNodeClass`:
 
-- `storageGB` — disk size in GB. Defaults to **20** when unset.
-- `storageTier` — `standard` (default), `maxiops`, or `hdd`.
+```yaml
+storage:
+  size: 20        # disk size in GB, defaults to 20
+  tier: standard    # standard (default), maxiops, or hdd
+  encrypted: true   # optional, enables encryption at rest
+```
 
 Karpenter does not size disks from pod storage requests; the disk is a fixed, configurable value and is advertised as the node's `ephemeral-storage` capacity. PersistentVolumeClaims are provisioned by the CSI driver and do not affect node selection.
 

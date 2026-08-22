@@ -11,12 +11,9 @@ type UpCloudNodeClassSpec struct {
 	Zone string `json:"zone"`
 	// Plan is the UKS node group plan name (e.g. "2xCPU-4GB", "PREMIUM-1xCPU-2GB", "CLOUDNATIVE-2xCPU-16GB").
 	Plan string `json:"plan"`
-	// StorageGB is the disk size in gigabytes for each node.
+	// Storage configures the node's root disk.
 	// +optional
-	StorageGB int `json:"storageGB,omitempty"`
-	// StorageTier is the storage tier: maxiops, standard, or hdd.
-	// +optional
-	StorageTier upcloud.StorageTier `json:"storageTier,omitempty"`
+	Storage *StorageSpec `json:"storage,omitempty"`
 	// SSHKeys is a list of SSH public keys to inject into each node.
 	// +optional
 	SSHKeys []string `json:"sshKeys,omitempty"`
@@ -35,6 +32,19 @@ type UpCloudNodeClassSpec struct {
 	// UtilityNetworkAccess enables/disables utility network access for nodes.
 	// +optional
 	UtilityNetworkAccess *bool `json:"utilityNetworkAccess,omitempty"`
+}
+
+// StorageSpec configures the node's root disk.
+type StorageSpec struct {
+	// Size is the disk size in gigabytes. Defaults to 20 when unset.
+	// +optional
+	Size int `json:"size,omitempty"`
+	// Tier is the storage tier: maxiops, standard, or hdd. Defaults to standard.
+	// +optional
+	Tier upcloud.StorageTier `json:"tier,omitempty"`
+	// Encrypted enables encryption at rest. Defaults to false.
+	// +optional
+	Encrypted *bool `json:"encrypted,omitempty"`
 }
 
 // UpCloudNodeClassStatus defines the observed state of UpCloudNodeClass.

@@ -39,7 +39,7 @@ func TestHashChangesWithSpec(t *testing.T) {
 	}
 
 	changedStorage := base.DeepCopy()
-	changedStorage.Spec.StorageGB = 40
+	changedStorage.Spec.Storage = &StorageSpec{Size: 40}
 	if changedStorage.Hash() == base.Hash() {
 		t.Errorf("expected storage change to alter hash")
 	}
