@@ -99,6 +99,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	// Merge labels: topology (from zone) + instance-type info + nodeClass.Spec.Labels + nodeClaim.Labels
 	labels := lo.Assign(
 		map[string]string{
+			"karpenter.sh/created-at":                  time.Now().Format(time.RFC3339),
 			"topology.kubernetes.io/region":            p.zone,
 			"topology.kubernetes.io/zone":              p.zone,
 			"failure-domain.beta.kubernetes.io/region": p.zone,
