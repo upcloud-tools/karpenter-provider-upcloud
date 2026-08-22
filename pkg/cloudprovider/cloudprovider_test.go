@@ -208,10 +208,10 @@ func TestBuildNodeClaimCapacityAndProviderID(t *testing.T) {
 	}
 	nc := buildNodeClaim(sd, "de-fra1")
 
-	if nc.Status.ProviderID != providerPrefix+serverUUID {
+	if nc.Status.ProviderID != apisv1alpha2.ProviderIDPrefix+serverUUID {
 		t.Errorf("unexpected providerID %q", nc.Status.ProviderID)
 	}
-	if got := strings.TrimPrefix(nc.Status.ProviderID, providerPrefix); got != serverUUID {
+	if got := strings.TrimPrefix(nc.Status.ProviderID, apisv1alpha2.ProviderIDPrefix); got != serverUUID {
 		t.Errorf("expected trimmed providerID %s, got %q", serverUUID, got)
 	}
 	if nc.Status.Capacity.Cpu().Value() != 4 {
@@ -254,7 +254,7 @@ func TestCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create error: %v", err)
 	}
-	if !strings.HasPrefix(created.Status.ProviderID, providerPrefix) {
+	if !strings.HasPrefix(created.Status.ProviderID, apisv1alpha2.ProviderIDPrefix) {
 		t.Errorf("expected providerID with prefix, got %q", created.Status.ProviderID)
 	}
 	if created.Status.Capacity.Cpu().Value() != 4 {
@@ -411,7 +411,7 @@ func TestIsDriftedNodeClassChanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IsDrifted error: %v", err)
 	}
-	if reason != NodeClassDrifted {
+	if reason != apisv1alpha2.NodeClassDrifted {
 		t.Errorf("expected NodeClassDrifted, got %q", reason)
 	}
 }

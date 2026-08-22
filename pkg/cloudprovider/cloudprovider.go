@@ -25,15 +25,6 @@ import (
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
 )
 
-const providerPrefix = "upcloud:////"
-
-// defaultStorageGB is the root disk size used when UpCloudNodeClass.Spec.StorageGB is unset.
-const defaultStorageGB = 20
-
-// NodeClassDrifted is returned by IsDrifted when the live UpCloudNodeClass no longer matches
-// the configuration a NodeClaim was provisioned against.
-const NodeClassDrifted cloudprovider.DriftReason = "NodeClassDrifted"
-
 type UpCloudCloudProvider struct {
 	client.Client
 	kubernetesInterface  kubernetes.Interface
@@ -82,7 +73,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		plan = req.Values[0]
 	}
 	capacityType := karpv1.CapacityTypeOnDemand
-	if isSpotPlan(plan) {
+	if v1alpha2.IsSpotPlan(plan) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 
@@ -165,7 +156,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 			},
 		},
 		Status: karpv1.NodeClaimStatus{
-			ProviderID:  providerPrefix + server.UUID,
+			ProviderID:  v1alpha2.ProviderIDPrefix + server.UUID,
 			NodeName:    server.Hostname,
 			Capacity:    capacity,
 			Allocatable: allocatable,
@@ -174,7 +165,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 }
 
 func (p *UpCloudCloudProvider) Delete(ctx context.Context, nodeClaim *karpv1.NodeClaim) error {
-	serverUUID := strings.TrimPrefix(nodeClaim.Status.ProviderID, providerPrefix)
+	serverUUID := strings.TrimPrefix(nodeClaim.Status.ProviderID, v1alpha2.ProviderIDPrefix)
 
 	// UpCloud requires servers to be stopped before deletion
 	if err := p.instanceProvider.Stop(ctx, serverUUID); err != nil {
@@ -203,7 +194,7 @@ func (p *UpCloudCloudProvider) Delete(ctx context.Context, nodeClaim *karpv1.Nod
 }
 
 func (p *UpCloudCloudProvider) Get(ctx context.Context, providerID string) (*karpv1.NodeClaim, error) {
-	serverUUID := strings.TrimPrefix(providerID, providerPrefix)
+	serverUUID := strings.TrimPrefix(providerID, v1alpha2.ProviderIDPrefix)
 	server, err := p.instanceProvider.Get(ctx, serverUUID)
 	if err != nil {
 		return nil, cloudprovider.NewNodeClaimNotFoundError(fmt.Errorf("getting server: %w", err))
@@ -240,7 +231,7 @@ func (p *UpCloudCloudProvider) IsDrifted(ctx context.Context, nodeClaim *karpv1.
 	}
 
 	if stored != nodeClass.Hash() {
-		return NodeClassDrifted, nil
+		return v1alpha2.NodeClassDrifted, nil
 	}
 	return "", nil
 }
@@ -258,7 +249,7 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 	allocatable := capacity.DeepCopy()
 
 	capacityType := karpv1.CapacityTypeOnDemand
-	if isSpotPlan(server.Plan) {
+	if v1alpha2.IsSpotPlan(server.Plan) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 
@@ -273,7 +264,7 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 			},
 		},
 		Status: karpv1.NodeClaimStatus{
-			ProviderID:  providerPrefix + server.UUID,
+			ProviderID:  v1alpha2.ProviderIDPrefix + server.UUID,
 			NodeName:    server.Hostname,
 			Capacity:    capacity,
 			Allocatable: allocatable,
@@ -314,11 +305,6 @@ func instanceTypeRequirement(nc *karpv1.NodeClaim) *karpv1.NodeSelectorRequireme
 		}
 	}
 	return nil
-}
-
-// isSpotPlan reports whether a plan name denotes a spot variant.
-func isSpotPlan(name string) bool {
-	return strings.Contains(strings.ToUpper(name), "SPOT")
 }
 
 func (p *UpCloudCloudProvider) resolveNodeClass(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha2.UpCloudNodeClass, error) {

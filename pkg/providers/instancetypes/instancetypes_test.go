@@ -92,7 +92,7 @@ func TestBuildInstanceTypeGPUCapacity(t *testing.T) {
 
 	it := p.buildInstanceTypeWithPrices(plan, map[string]float64{"GPU-8xCPU-64GB-1xL4": 2.5})
 
-	if got := it.Capacity[ResourceNvidiaGPU]; got.Value() != 1 {
+	if got := it.Capacity[v1alpha2.ResourceNvidiaGPU]; got.Value() != 1 {
 		t.Errorf("expected nvidia.com/gpu capacity 1, got %d", got.Value())
 	}
 }
@@ -104,7 +104,7 @@ func TestBuildInstanceTypeNoGPUCapacityForNonGPUPlan(t *testing.T) {
 
 	it := p.buildInstanceTypeWithPrices(plan, map[string]float64{"CLOUDNATIVE-2xCPU-4GB": 0.05})
 
-	if _, ok := it.Capacity[ResourceNvidiaGPU]; ok {
+	if _, ok := it.Capacity[v1alpha2.ResourceNvidiaGPU]; ok {
 		t.Errorf("expected no nvidia.com/gpu capacity on non-GPU plan")
 	}
 }

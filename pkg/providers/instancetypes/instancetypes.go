@@ -21,10 +21,6 @@ import (
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
-// ResourceNvidiaGPU is the standard Kubernetes GPU resource. Advertising it on GPU instance
-// types lets Karpenter schedule pods that request nvidia.com/gpu.
-const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
-
 // Provider caches UpCloud plans as Karpenter InstanceTypes, refreshed periodically from the UpCloud API.
 type Provider struct {
 	svc                 service.Cloud
@@ -153,7 +149,7 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 	// Surface GPU capacity so pods requesting nvidia.com/gpu can be scheduled.
 	// Karpenter treats any dot-namespaced resource as an accelerator automatically.
 	if plan.GPUAmount > 0 {
-		resources[ResourceNvidiaGPU] = *resource.NewQuantity(int64(plan.GPUAmount), resource.DecimalSI)
+		resources[v1alpha2.ResourceNvidiaGPU] = *resource.NewQuantity(int64(plan.GPUAmount), resource.DecimalSI)
 	}
 
 	price := math.MaxFloat64
@@ -164,7 +160,7 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 	// Each plan is its own instance type. A spot plan (name contains "SPOT") gets a spot offering; otherwise on-demand.
 	// Karpenter selects between them via the capacity-type requirement, and passes the chosen plan name back through the NodeClaim.
 	capacityType := karpv1.CapacityTypeOnDemand
-	if isSpotPlan(plan.Name) {
+	if v1alpha2.IsSpotPlan(plan.Name) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 	offerings := cloudprovider.Offerings{
@@ -202,11 +198,6 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		Capacity:     resources,
 		Overhead:     &cloudprovider.InstanceTypeOverhead{},
 	}
-}
-
-// isSpotPlan reports whether a plan name denotes a spot variant (UpCloud encodes spot in the plan name, e.g. "GPU-SPOT-8xCPU-64GB-1xL4").
-func isSpotPlan(name string) bool {
-	return strings.Contains(strings.ToUpper(name), "SPOT")
 }
 
 // instanceFamily extracts the family prefix from a plan name (e.g. "CLOUDNATIVE-2xCPU-4GB" → "CLOUDNATIVE",

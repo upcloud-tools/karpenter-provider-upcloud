@@ -18,10 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const (
-	Finalizer = "upcloud.com/nodeclass-finalizer"
-)
-
 type Controller struct {
 	client.Client
 }
@@ -43,8 +39,8 @@ func (r *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	stored := nodeClass.DeepCopy()
 
-	if !slices.Contains(nodeClass.Finalizers, Finalizer) {
-		nodeClass.Finalizers = append(nodeClass.Finalizers, Finalizer)
+	if !slices.Contains(nodeClass.Finalizers, apiv1.NodeClassFinalizer) {
+		nodeClass.Finalizers = append(nodeClass.Finalizers, apiv1.NodeClassFinalizer)
 		if err := r.Update(ctx, nodeClass); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -77,14 +73,14 @@ func (r *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 }
 
 func (r *Controller) handleDeletion(ctx context.Context, nodeClass *apiv1.UpCloudNodeClass) (reconcile.Result, error) {
-	if !slices.Contains(nodeClass.Finalizers, Finalizer) {
+	if !slices.Contains(nodeClass.Finalizers, apiv1.NodeClassFinalizer) {
 		return reconcile.Result{}, nil
 	}
 
 	log.FromContext(ctx).Info("handling UpCloudNodeClass deletion")
 
 	nodeClass.Finalizers = slices.DeleteFunc(nodeClass.Finalizers, func(s string) bool {
-		return s == Finalizer
+		return s == apiv1.NodeClassFinalizer
 	})
 	if err := r.Update(ctx, nodeClass); err != nil {
 		return reconcile.Result{}, err

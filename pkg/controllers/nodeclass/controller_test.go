@@ -43,7 +43,7 @@ func reconcileAndGet(t *testing.T, nc *apiv1.UpCloudNodeClass) *apiv1.UpCloudNod
 
 func TestReconcileValidSpecReady(t *testing.T) {
 	nc := &apiv1.UpCloudNodeClass{
-		ObjectMeta: metav1.ObjectMeta{Name: "valid", Finalizers: []string{Finalizer}},
+		ObjectMeta: metav1.ObjectMeta{Name: "valid", Finalizers: []string{apiv1.NodeClassFinalizer}},
 		Spec:       apiv1.UpCloudNodeClassSpec{Zone: "de-fra1", Plan: "2xCPU-4GB"},
 	}
 	got := reconcileAndGet(t, nc)
@@ -61,7 +61,7 @@ func TestReconcileValidSpecReady(t *testing.T) {
 
 func TestReconcileMissingZoneNotReady(t *testing.T) {
 	nc := &apiv1.UpCloudNodeClass{
-		ObjectMeta: metav1.ObjectMeta{Name: "invalid", Finalizers: []string{Finalizer}},
+		ObjectMeta: metav1.ObjectMeta{Name: "invalid", Finalizers: []string{apiv1.NodeClassFinalizer}},
 		Spec:       apiv1.UpCloudNodeClassSpec{Plan: "2xCPU-4GB"},
 	}
 	got := reconcileAndGet(t, nc)
@@ -73,7 +73,7 @@ func TestReconcileMissingZoneNotReady(t *testing.T) {
 
 func TestReconcileMissingPlanNotReady(t *testing.T) {
 	nc := &apiv1.UpCloudNodeClass{
-		ObjectMeta: metav1.ObjectMeta{Name: "invalid2", Finalizers: []string{Finalizer}},
+		ObjectMeta: metav1.ObjectMeta{Name: "invalid2", Finalizers: []string{apiv1.NodeClassFinalizer}},
 		Spec:       apiv1.UpCloudNodeClassSpec{Zone: "de-fra1"},
 	}
 	got := reconcileAndGet(t, nc)
