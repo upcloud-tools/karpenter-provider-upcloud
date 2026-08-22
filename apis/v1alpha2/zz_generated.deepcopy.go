@@ -68,25 +68,20 @@ func (in *UpCloudNodeClassSpec) DeepCopyInto(out *UpCloudNodeClassSpec) {
 	}
 	if in.KubeletArgs != nil {
 		in, out := &in.KubeletArgs, &out.KubeletArgs
-			*out = make([]upcloud.KubernetesKubeletArg, len(*in))
-			copy(*out, *in)
-		}
-		if in.Labels != nil {
-			in, out := &in.Labels, &out.Labels
-			*out = make(map[string]string, len(*in))
-			for key, val := range *in {
-				(*out)[key] = val
-			}
-		}
-		if in.Taints != nil {
-			in, out := &in.Taints, &out.Taints
-			*out = make([]upcloud.KubernetesTaint, len(*in))
+		*out = make([]upcloud.KubernetesKubeletArg, len(*in))
 		copy(*out, *in)
 	}
-	if in.AntiAffinity != nil {
-		in, out := &in.AntiAffinity, &out.AntiAffinity
-		*out = new(bool)
-		**out = **in
+	if in.Labels != nil {
+		in, out := &in.Labels, &out.Labels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	if in.Taints != nil {
+		in, out := &in.Taints, &out.Taints
+		*out = make([]upcloud.KubernetesTaint, len(*in))
+		copy(*out, *in)
 	}
 	if in.UtilityNetworkAccess != nil {
 		in, out := &in.UtilityNetworkAccess, &out.UtilityNetworkAccess

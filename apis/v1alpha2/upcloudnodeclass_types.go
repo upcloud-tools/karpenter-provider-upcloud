@@ -26,9 +26,11 @@ type UpCloudNodeClassSpec struct {
 	// Taints are Kubernetes taints applied to each node in the group.
 	// +optional
 	Taints []upcloud.KubernetesTaint `json:"taints,omitempty"`
-	// AntiAffinity enables/disables anti-affinity placement for nodes.
+	// ServerGroupUUID is the UUID of the UpCloud server group to place nodes in.
+	// Server groups can have anti-affinity policies configured to ensure nodes are placed on different physical hosts.
+	// If not specified, nodes are placed without server group constraints.
 	// +optional
-	AntiAffinity *bool `json:"antiAffinity,omitempty"`
+	ServerGroupUUID string `json:"serverGroupUUID,omitempty"`
 	// UtilityNetworkAccess enables/disables utility network access for nodes.
 	// +optional
 	UtilityNetworkAccess *bool `json:"utilityNetworkAccess,omitempty"`

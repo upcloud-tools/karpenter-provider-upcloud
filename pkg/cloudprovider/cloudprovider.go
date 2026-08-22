@@ -131,7 +131,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		return nil, fmt.Errorf("generating userdata: %w", err)
 	}
 
-	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, serverLabels, nodeClass.Spec.Storage)
+	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, nodeClass.Spec.ServerGroupUUID, serverLabels, nodeClass.Spec.Storage)
 	if err != nil {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("creating server: %w", err))
 	}

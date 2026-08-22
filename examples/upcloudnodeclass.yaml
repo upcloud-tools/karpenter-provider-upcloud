@@ -10,3 +10,5 @@ spec:
     size: 20          # default 20 (GB)
     tier: standard    # standard|maxiops|hdd, default standard
     encrypted: false  # optional, enables encryption at rest, default false
+    # Create a server group with: upctl server-group create --title "karpenter-nodes" --anti-affinity-policy strict
+    serverGroupUUID: "" # optional, server group UUID for anti-affinity placement.

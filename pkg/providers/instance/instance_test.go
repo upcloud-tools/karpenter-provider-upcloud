@@ -30,7 +30,7 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	srv := &captureServer{}
 	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
 
-	_, err := p.Create(context.Background(), "karpenter-abc", "4xCPU-8GB", "de-fra1", "#cloud-config", map[string]string{"team": "ai"}, &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	_, err := p.Create(context.Background(), "karpenter-abc", "4xCPU-8GB", "de-fra1", "#cloud-config", "", map[string]string{"team": "ai"}, &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
 	if err != nil {
 		t.Fatalf("Create error: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestCreateUsesCustomStorage(t *testing.T) {
 	srv := &captureServer{}
 	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
 
-	if _, err := p.Create(context.Background(), "karpenter-xyz", "GPU-8xCPU-64GB-1xL4", "de-fra1", "#cloud-config", nil, &v1alpha2.StorageSpec{Size: 100, Tier: upcloud.StorageTierMaxIOPS}); err != nil {
+	if _, err := p.Create(context.Background(), "karpenter-xyz", "GPU-8xCPU-64GB-1xL4", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Size: 100, Tier: upcloud.StorageTierMaxIOPS}); err != nil {
 		t.Fatalf("Create error: %v", err)
 	}
 	if srv.gotReq.StorageDevices[0].Tier != string(upcloud.StorageTierMaxIOPS) {
@@ -102,6 +102,41 @@ func TestCreateUsesCustomStorage(t *testing.T) {
 	}
 	if srv.gotReq.StorageDevices[0].Size != 100 {
 		t.Errorf("expected 100GB disk, got %d", srv.gotReq.StorageDevices[0].Size)
+	}
+}
+
+// TestCreateWithServerGroup verifies that the server group UUID is correctly passed to the CreateServer request.
+func TestCreateWithServerGroup(t *testing.T) {
+	srv := &captureServer{}
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+
+	serverGroupUUID := "test-server-group-uuid-123"
+	_, err := p.Create(context.Background(), "karpenter-abc", "4xCPU-8GB", "de-fra1", "#cloud-config", serverGroupUUID, nil, nil)
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if srv.gotReq == nil {
+		t.Fatal("CreateServer was not called")
+	}
+	if srv.gotReq.ServerGroup != serverGroupUUID {
+		t.Errorf("expected server group UUID %q, got %q", serverGroupUUID, srv.gotReq.ServerGroup)
+	}
+}
+
+// TestCreateWithEmptyServerGroup verifies that an empty server group UUID is handled correctly.
+func TestCreateWithEmptyServerGroup(t *testing.T) {
+	srv := &captureServer{}
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+
+	_, err := p.Create(context.Background(), "karpenter-abc", "4xCPU-8GB", "de-fra1", "#cloud-config", "", nil, nil)
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if srv.gotReq == nil {
+		t.Fatal("CreateServer was not called")
+	}
+	if srv.gotReq.ServerGroup != "" {
+		t.Errorf("expected empty server group UUID, got %q", srv.gotReq.ServerGroup)
 	}
 }
 

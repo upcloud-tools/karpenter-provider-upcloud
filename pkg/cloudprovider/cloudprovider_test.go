@@ -351,6 +351,38 @@ func TestCreateUsesNodeClassPlanWhenNoInstanceTypeRequirement(t *testing.T) {
 	}
 }
 
+func TestCreateWithServerGroupUUID(t *testing.T) {
+	cp, fakeSrv, kubeClient := newTestProvider(t)
+
+	// Update the NodeClass to include a server group UUID
+	nc := &apisv1alpha2.UpCloudNodeClass{}
+	if err := kubeClient.Get(context.Background(), types.NamespacedName{Name: "default"}, nc); err != nil {
+		t.Fatalf("getting nodeclass: %v", err)
+	}
+	nc.Spec.ServerGroupUUID = "test-server-group-uuid-123"
+	if err := kubeClient.Update(context.Background(), nc); err != nil {
+		t.Fatalf("updating nodeclass: %v", err)
+	}
+
+	created, err := cp.Create(context.Background(), newTestNodeClaim())
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+
+	// Verify that the server was created with the correct server group UUID
+	if fakeSrv.lastReq == nil {
+		t.Fatal("expected CreateServer to be called")
+	}
+	if fakeSrv.lastReq.ServerGroup != "test-server-group-uuid-123" {
+		t.Errorf("expected server group UUID 'test-server-group-uuid-123', got %q", fakeSrv.lastReq.ServerGroup)
+	}
+
+	// Verify the node claim was created successfully
+	if !strings.HasPrefix(created.Status.ProviderID, apisv1alpha2.ProviderIDPrefix) {
+		t.Errorf("expected providerID with prefix, got %q", created.Status.ProviderID)
+	}
+}
+
 func TestGetAndList(t *testing.T) {
 	cp, _, _ := newTestProvider(t)
 	created, err := cp.Create(context.Background(), newTestNodeClaim())

@@ -55,7 +55,7 @@ An `UpCloudNodeClass` is roughly equivalent to a UKS node group's configuration.
 - **Plan** — the server plan (e.g., `CLOUDNATIVE-2xCPU-4GB`, `GPU-4xCPU-32GB-1xL4`)
 - **Storage** — root disk config: `size` (GB, default 20), `tier` (`standard`, `maxiops`, or `hdd`), `encrypted` (bool)
 - **Labels/Taints** — applied to each node in the group
-- **AntiAffinity** — whether nodes should avoid being placed on the same physical host
+- **ServerGroupUUID** — UUID of an UpCloud server group; server groups can have anti-affinity policies to spread nodes across physical hosts
 
 A NodePool references an `UpCloudNodeClass` to say "provision nodes with this configuration." The NodePool's `requirements` field selects which instance types (plans) are acceptable; the NodeClass provides the rest of the config.
 

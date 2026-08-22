@@ -66,8 +66,11 @@ spec:
                         type: string
                       value:
                         type: string
-                antiAffinity:
-                  type: boolean
+                serverGroupUUID:
+                  type: string
+                  description: >
+                    UUID of the UpCloud server group to place nodes in.
+                    Server groups can have anti-affinity policies configured to ensure nodes are placed on different physical hosts.
                 utilityNetworkAccess:
                   type: boolean
             status:

@@ -35,7 +35,7 @@ func NewProvider(svc service.Server, templateUUID, networkUUID, clusterID, clust
 
 // Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects
 // userdata (containing kubelet config and TLS certs), and applies the managed marker label.
-func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storage *v1alpha2.StorageSpec) (*upcloud.ServerDetails, error) {
+func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData, serverGroupUUID string, labels map[string]string, storage *v1alpha2.StorageSpec) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -63,11 +63,12 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 	}
 
 	createReq := &request.CreateServerRequest{
-		Labels:   labelSlice,
-		Zone:     zone,
-		Hostname: hostname,
-		Title:    hostname,
-		Plan:     plan,
+		Labels:      labelSlice,
+		Zone:        zone,
+		Hostname:    hostname,
+		Title:       hostname,
+		Plan:        plan,
+		ServerGroup: serverGroupUUID,
 		StorageDevices: request.CreateServerStorageDeviceSlice{
 			{
 				Action:    "clone",
