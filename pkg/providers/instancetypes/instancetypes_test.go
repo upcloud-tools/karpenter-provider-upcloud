@@ -202,67 +202,18 @@ func names(its []*cloudprovider.InstanceType) map[string]bool {
 	return out
 }
 
-// TestRefreshDefaultScopeCloudNativeFirst verifies that only CloudNative and GPU plans are included by default, without env var opt-ins.
-func TestRefreshDefaultScopeCloudNativeFirst(t *testing.T) {
-	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
-	if err := p.Refresh(context.Background()); err != nil {
-		t.Fatalf("Refresh returned error: %v", err)
-	}
-	got := names(p.List())
-	if len(got) != 2 {
-		t.Fatalf("expected CloudNative + GPU by default, got %v", got)
-	}
-	if !got["CLOUDNATIVE-2xCPU-4GB"] || !got["GPU-8xCPU-64GB-1xL4"] {
-		t.Errorf("expected CLOUDNATIVE + GPU plans included by default, got %v", got)
-	}
-	if got["STARTER-1xCPU-2GB"] || got["PREMIUM-2xCPU-2GB"] {
-		t.Errorf("expected STARTER/PREMIUM excluded by default, got %v", got)
-	}
-}
-
-// TestRefreshScopeStarterPremium verifies that both STARTER and PREMIUM plans are included when both opt-in env vars are set.
-func TestRefreshScopeStarterPremium(t *testing.T) {
-	t.Setenv("UPCLOUD_ALLOW_STARTER_PLANS", "true")
-	t.Setenv("UPCLOUD_ALLOW_PREMIUM_PLANS", "true")
+// TestRefreshIncludesAllPlans verifies that all plans from the API are included as instance types.
+func TestRefreshIncludesAllPlans(t *testing.T) {
 	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
 	if err := p.Refresh(context.Background()); err != nil {
 		t.Fatalf("Refresh returned error: %v", err)
 	}
 	got := names(p.List())
 	if len(got) != 4 {
-		t.Fatalf("expected all 4 k8s-relevant families when opted in, got %v", got)
+		t.Fatalf("expected all 4 plans included, got %v", got)
 	}
-}
-
-// TestRefreshScopeStarterOnly verifies that only STARTER plans are included when only UPCLOUD_ALLOW_STARTER_PLANS is set.
-func TestRefreshScopeStarterOnly(t *testing.T) {
-	t.Setenv("UPCLOUD_ALLOW_STARTER_PLANS", "true")
-	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
-	if err := p.Refresh(context.Background()); err != nil {
-		t.Fatalf("Refresh returned error: %v", err)
-	}
-	got := names(p.List())
-	if !got["STARTER-1xCPU-2GB"] {
-		t.Errorf("expected STARTER plan included, got %v", got)
-	}
-	if got["PREMIUM-2xCPU-2GB"] {
-		t.Errorf("expected PREMIUM still excluded, got %v", got)
-	}
-}
-
-// TestRefreshScopePremiumOnly verifies that only PREMIUM plans are included when only UPCLOUD_ALLOW_PREMIUM_PLANS is set.
-func TestRefreshScopePremiumOnly(t *testing.T) {
-	t.Setenv("UPCLOUD_ALLOW_PREMIUM_PLANS", "true")
-	p := NewProvider(&fakeCloud{plans: mixedPlans(), prices: &upcloud.PricesByZone{"de-fra1": {}}}, "de-fra1")
-	if err := p.Refresh(context.Background()); err != nil {
-		t.Fatalf("Refresh returned error: %v", err)
-	}
-	got := names(p.List())
-	if !got["PREMIUM-2xCPU-2GB"] {
-		t.Errorf("expected PREMIUM plan included, got %v", got)
-	}
-	if got["STARTER-1xCPU-2GB"] {
-		t.Errorf("expected STARTER still excluded, got %v", got)
+	if !got["CLOUDNATIVE-2xCPU-4GB"] || !got["GPU-8xCPU-64GB-1xL4"] || !got["STARTER-1xCPU-2GB"] || !got["PREMIUM-2xCPU-2GB"] {
+		t.Errorf("expected all plans included, got %v", got)
 	}
 }
 
@@ -274,4 +225,100 @@ func findInstanceType(its []*cloudprovider.InstanceType, name string) *cloudprov
 		}
 	}
 	return nil
+}
+
+// TestInstanceTypeLabels verifies that UpCloud-specific instance type labels are set correctly.
+func TestInstanceTypeLabels(t *testing.T) {
+	p := NewProvider(nil, "de-fra1")
+
+	tests := []struct {
+		name     string
+		plan     upcloud.Plan
+		expected map[string]string
+		absent   []string
+	}{
+		{
+			name: "cloudnative plan",
+			plan: upcloud.Plan{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0},
+			expected: map[string]string{
+				LabelInstanceFamily:      "CLOUDNATIVE",
+				LabelInstanceCPU:         "2",
+				LabelInstanceMemory:      "4096",
+				LabelInstanceStorageSize: "0",
+			},
+			absent: []string{LabelInstanceGPUCount, LabelInstanceGPUModel},
+		},
+		{
+			name: "gpu plan",
+			plan: upcloud.Plan{Name: "GPU-8xCPU-64GB-1xL4", CoreNumber: 8, MemoryAmount: 65536, StorageSize: 50, GPUAmount: 1, GPUModel: "NVIDIA L4"},
+			expected: map[string]string{
+				LabelInstanceFamily:      "GPU",
+				LabelInstanceCPU:         "8",
+				LabelInstanceMemory:      "65536",
+				LabelInstanceStorageSize: "50",
+				LabelInstanceGPUCount:    "1",
+				LabelInstanceGPUModel:    "NVIDIA L4",
+			},
+		},
+		{
+			name: "starter plan",
+			plan: upcloud.Plan{Name: "STARTER-1xCPU-2GB", CoreNumber: 1, MemoryAmount: 2048, StorageSize: 20},
+			expected: map[string]string{
+				LabelInstanceFamily:      "STARTER",
+				LabelInstanceCPU:         "1",
+				LabelInstanceMemory:      "2048",
+				LabelInstanceStorageSize: "20",
+			},
+			absent: []string{LabelInstanceGPUCount, LabelInstanceGPUModel},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			it := p.buildInstanceTypeWithPrices(tt.plan, map[string]float64{tt.plan.Name: 0.1})
+
+			for label, want := range tt.expected {
+				got := it.Requirements.Get(label)
+				if got == nil {
+					t.Errorf("expected label %s to be set", label)
+					continue
+				}
+				values := got.Values()
+				if len(values) != 1 || values[0] != want {
+					t.Errorf("label %s: expected %q, got %v", label, want, values)
+				}
+			}
+
+			for _, label := range tt.absent {
+				req := it.Requirements.Get(label)
+				if req != nil && len(req.Values()) > 0 {
+					t.Errorf("expected label %s to be absent, but it was set to %v", label, req.Values())
+				}
+			}
+		})
+	}
+}
+
+// TestInstanceFamily verifies the instanceFamily helper extracts the correct prefix.
+func TestInstanceFamily(t *testing.T) {
+	tests := []struct {
+		planName string
+		expected string
+	}{
+		{"CLOUDNATIVE-2xCPU-4GB", "CLOUDNATIVE"},
+		{"GPU-8xCPU-64GB-1xL4", "GPU"},
+		{"GPU-SPOT-8xCPU-64GB-1xL4", "GPU"},
+		{"STARTER-1xCPU-2GB", "STARTER"},
+		{"PREMIUM-2xCPU-4GB", "PREMIUM"},
+		{"UNKNOWN-PLAN", "UNKNOWN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.planName, func(t *testing.T) {
+			got := instanceFamily(tt.planName)
+			if got != tt.expected {
+				t.Errorf("instanceFamily(%q) = %q, want %q", tt.planName, got, tt.expected)
+			}
+		})
+	}
 }

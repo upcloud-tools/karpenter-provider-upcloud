@@ -69,10 +69,6 @@ spec:
             {{- end }}
             - name: UPCLOUD_REPAIR_TOLERATION
               value: {{ .Values.config.repairToleration | quote }}
-            - name: UPCLOUD_ALLOW_STARTER_PLANS
-              value: {{ .Values.config.allowStarterPlans | quote }}
-            - name: UPCLOUD_ALLOW_PREMIUM_PLANS
-              value: {{ .Values.config.allowPremiumPlans | quote }}
             {{- with .Values.extraEnv }}{{ tpl (toYaml .) $ | nindent 12 }}{{ end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:

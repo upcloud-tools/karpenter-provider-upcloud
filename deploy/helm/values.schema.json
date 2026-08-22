@@ -34,9 +34,7 @@
             "ttl": { "type": "string", "default": "50m" }
           }
         },
-        "repairToleration": { "type": "string", "default": "30m" },
-        "allowStarterPlans": { "type": "boolean", "default": false },
-        "allowPremiumPlans": { "type": "boolean", "default": false }
+        "repairToleration": { "type": "string", "default": "30m" }
       }
     },
     "resources": {

@@ -151,16 +151,6 @@ tests:
           content:
             name: UPCLOUD_REPAIR_TOLERATION
             value: "30m"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: UPCLOUD_ALLOW_STARTER_PLANS
-            value: "false"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: UPCLOUD_ALLOW_PREMIUM_PLANS
-            value: "false"
 
   - it: should allow overriding repairToleration
     set:
@@ -174,29 +164,3 @@ tests:
           content:
             name: UPCLOUD_REPAIR_TOLERATION
             value: "1h"
-
-  - it: should allow enabling starter plans
-    set:
-      config:
-        clusterUUID: 0d000000-0000-4000-8000-000160150100
-        allowStarterPlans: true
-    template: deployment.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: UPCLOUD_ALLOW_STARTER_PLANS
-            value: "true"
-
-  - it: should allow enabling premium plans
-    set:
-      config:
-        clusterUUID: 0d000000-0000-4000-8000-000160150100
-        allowPremiumPlans: true
-    template: deployment.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: UPCLOUD_ALLOW_PREMIUM_PLANS
-            value: "true"

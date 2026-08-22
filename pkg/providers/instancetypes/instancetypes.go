@@ -28,7 +28,7 @@ const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
 const (
 	LabelDomain = "karpenter.k8s.upcloud"
 
-	// Instance family extracted from the plan name prefix (CLOUDNATIVE, GPU, STARTER, PREMIUM, DEV).
+	// Instance family extracted from the plan name prefix (CLOUDNATIVE, GPU, STARTER, PREMIUM).
 	LabelInstanceFamily = LabelDomain + "/instance-family"
 	// CPU core count.
 	LabelInstanceCPU = LabelDomain + "/instance-cpu"

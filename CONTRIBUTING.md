@@ -63,11 +63,9 @@ A NodePool references an `UpCloudNodeClass` to say "provision nodes with this co
 
 ### Instance Types Are UpCloud Plans
 
-Karpenter's `GetInstanceTypes()` returns cached UpCloud plans, each surfaced as a separate instance type. The provider calls `GetPlans()` to fetch all available plans with CPU, RAM, and GPU specs, then `GetPricesByZone()` for pricing.
+Karpenter's `GetInstanceTypes()` returns cached UpCloud plans, each surfaced as a separate instance type. The provider calls `GetPlans()` to fetch all available plans with CPU, RAM, and GPU specs, then `GetPricesByZone()` for pricing. All plan families are included (CLOUDNATIVE, GPU, STARTER, PREMIUM). Use NodePool requirements with instance type labels to select specific families or characteristics.
 
 Each plan is its own instance type. Spot plans (names containing `SPOT`) get a `karpenter.sh/capacity-type: spot` offering; all others get `on-demand`. Karpenter selects between them via the capacity-type requirement.
-
-**Scope filtering:** By default, only `CLOUDNATIVE-*` and GPU plans are included. `STARTER-*` and `PREMIUM-*` plans are excluded unless you opt in via environment variables (`UPCLOUD_ALLOW_STARTER_PLANS`, `UPCLOUD_ALLOW_PREMIUM_PLANS`).
 
 **Where this matters:** `pkg/providers/instancetypes/instancetypes.go` — `Refresh()`, `buildInstanceTypeWithPrices()`.
 

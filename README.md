@@ -91,20 +91,40 @@ Nodes created before drift detection existed carry no hash annotation and are le
 
 ### Instance type scope
 
-`GetInstanceTypes()` discovers plans via `GetPlans()` and surfaces them as Karpenter instance types. The default scope is **CloudNative-first**:
+`GetInstanceTypes()` discovers all plans via `GetPlans()` and surfaces them as Karpenter instance types. All plan families are included: `CLOUDNATIVE-*`, `GPU-*` (including `GPU-SPOT-*`), `STARTER-*`, and `PREMIUM-*`. Use NodePool requirements with the instance type labels to select specific families or characteristics.
 
-- **Included by default:** `CLOUDNATIVE-*` plans and GPU plans (`gpu_amount > 0`, including `GPU-SPOT-*`).
-- **Excluded by default:** `STARTER` and `PREMIUM` plans — opt in per family below.
-
-Opt in to additional families with environment variables on the provider:
-
-| Variable | Effect |
-|----------|--------|
-| `UPCLOUD_ALLOW_STARTER_PLANS` | Also include `STARTER-*` plans (e.g. `true`). |
-| `UPCLOUD_ALLOW_PREMIUM_PLANS` | Also include `PREMIUM-*` plans (e.g. `true`). |
-
-> GPU plans (`GPU-*` / `GPU-SPOT-*`) are included by default and advertise `nvidia.com/gpu` capacity, so pods requesting GPU resources schedule onto them. The GPU device plugin must be installed in the cluster for the resource to be consumable on the node.
+> GPU plans (`GPU-*` / `GPU-SPOT-*`) advertise `nvidia.com/gpu` capacity, so pods requesting GPU resources schedule onto them. The GPU device plugin must be installed in the cluster for the resource to be consumable on the node.
 > `CLOUDNATIVE-*` / GPU plans report `storage_size: 0`; the node boot disk is still provisioned from the configurable `storage.size` (default 20GB).
+
+### Instance type labels
+
+Each instance type carries UpCloud-specific labels that NodePools can use for selection without enumerating plan names:
+
+| Label | Example | Description |
+|-------|---------|-------------|
+| `karpenter.k8s.upcloud/instance-family` | `CLOUDNATIVE`, `GPU`, `STARTER`, `PREMIUM` | Plan family extracted from the name prefix |
+| `karpenter.k8s.upcloud/instance-cpu` | `2`, `4`, `8` | CPU core count |
+| `karpenter.k8s.upcloud/instance-memory` | `4096`, `8192` | Memory in MiB |
+| `karpenter.k8s.upcloud/instance-storage-size` | `0`, `50`, `100` | Storage size in GB |
+| `karpenter.k8s.upcloud/instance-gpu-count` | `1`, `2` | GPU count (GPU plans only) |
+| `karpenter.k8s.upcloud/instance-gpu-model` | `NVIDIA L4` | GPU model (GPU plans only) |
+
+Example NodePool selecting any GPU instance with at least 4 CPUs:
+
+```yaml
+apiVersion: karpenter.sh/v1
+kind: NodePool
+spec:
+  template:
+    spec:
+      requirements:
+        - key: karpenter.k8s.upcloud/instance-family
+          operator: In
+          values: ["GPU"]
+        - key: karpenter.k8s.upcloud/instance-cpu
+          operator: Gt
+          values: ["3"]
+```
 
 ### Node storage
 

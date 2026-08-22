@@ -42,12 +42,6 @@ config:  # @schema additionalProperties: false
   # Repair toleration duration for unhealthy nodes.
   repairToleration: 30m  # @schema type: string
 
-  # Include STARTER plans in instance type discovery.
-  allowStarterPlans: false
-
-  # Include PREMIUM plans in instance type discovery.
-  allowPremiumPlans: false
-
 resources: {}  # @schema additionalProperties: false
   # requests:
   #   cpu: 100m
