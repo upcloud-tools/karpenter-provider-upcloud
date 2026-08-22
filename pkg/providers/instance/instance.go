@@ -12,9 +12,6 @@ import (
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
-const managedLabelKey = "managed_by"
-const managedLabelValue = "karpenter"
-
 // Provider manages the lifecycle of UpCloud servers (create, delete, get, list, stop).
 // Each server is cloned from a template storage device and attached to the cluster network.
 type Provider struct {
@@ -42,10 +39,10 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	labels[managedLabelKey] = managedLabelValue
-	labels["capu_cluster_id"] = p.clusterID
-	labels["capu_cluster_name"] = p.clusterName
-	labels["capu_generated_name"] = hostname
+	labels[v1alpha2.ServerManagedLabelKey] = v1alpha2.ServerManagedLabelValue
+	labels[v1alpha2.ServerClusterIDLabelKey] = p.clusterID
+	labels[v1alpha2.ServerClusterNameLabelKey] = p.clusterName
+	labels[v1alpha2.ServerGeneratedNameLabelKey] = hostname
 
 	labelSlice := &upcloud.LabelSlice{}
 	for k, v := range labels {
@@ -179,7 +176,7 @@ func (p *Provider) WaitForStop(ctx context.Context, serverUUID string) error {
 // isManaged checks whether a server carries the managed label.
 func isManaged(s upcloud.ServerDetails) bool {
 	for _, l := range s.Labels {
-		if l.Key == managedLabelKey && l.Value == managedLabelValue {
+		if l.Key == v1alpha2.ServerManagedLabelKey && l.Value == v1alpha2.ServerManagedLabelValue {
 			return true
 		}
 	}

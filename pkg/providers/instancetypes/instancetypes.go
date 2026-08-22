@@ -17,30 +17,13 @@ import (
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/scheduling"
+
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 // ResourceNvidiaGPU is the standard Kubernetes GPU resource. Advertising it on GPU instance
 // types lets Karpenter schedule pods that request nvidia.com/gpu.
 const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
-
-// Label domain for UpCloud-specific instance type metadata. NodePools can select on these labels
-// to target specific instance characteristics without enumerating plan names.
-const (
-	LabelDomain = "karpenter.k8s.upcloud"
-
-	// Instance family extracted from the plan name prefix (CLOUDNATIVE, GPU, STARTER, PREMIUM).
-	LabelInstanceFamily = LabelDomain + "/instance-family"
-	// CPU core count.
-	LabelInstanceCPU = LabelDomain + "/instance-cpu"
-	// Memory in MiB.
-	LabelInstanceMemory = LabelDomain + "/instance-memory"
-	// Storage size in GB.
-	LabelInstanceStorageSize = LabelDomain + "/instance-storage-size"
-	// GPU count (only present on GPU plans).
-	LabelInstanceGPUCount = LabelDomain + "/instance-gpu-count"
-	// GPU model name (only present on GPU plans, e.g. "L4").
-	LabelInstanceGPUModel = LabelDomain + "/instance-gpu-model"
-)
 
 // Provider caches UpCloud plans as Karpenter InstanceTypes, refreshed periodically from the UpCloud API.
 type Provider struct {
@@ -200,15 +183,15 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, string(corev1.Linux)),
 		scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, p.zone),
 		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
-		scheduling.NewRequirement(LabelInstanceFamily, corev1.NodeSelectorOpIn, instanceFamily(plan.Name)),
-		scheduling.NewRequirement(LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.CoreNumber)),
-		scheduling.NewRequirement(LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.MemoryAmount)),
-		scheduling.NewRequirement(LabelInstanceStorageSize, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.StorageSize)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceFamily, corev1.NodeSelectorOpIn, instanceFamily(plan.Name)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.CoreNumber)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.MemoryAmount)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceStorageSize, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.StorageSize)),
 	}
 	if plan.GPUAmount > 0 {
 		reqs = append(reqs,
-			scheduling.NewRequirement(LabelInstanceGPUCount, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.GPUAmount)),
-			scheduling.NewRequirement(LabelInstanceGPUModel, corev1.NodeSelectorOpIn, plan.GPUModel),
+			scheduling.NewRequirement(v1alpha2.LabelInstanceGPUCount, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.GPUAmount)),
+			scheduling.NewRequirement(v1alpha2.LabelInstanceGPUModel, corev1.NodeSelectorOpIn, plan.GPUModel),
 		)
 	}
 

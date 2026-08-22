@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
+
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 // fakeCloud implements service.Cloud with canned plans and prices for testing.
@@ -241,35 +243,35 @@ func TestInstanceTypeLabels(t *testing.T) {
 			name: "cloudnative plan",
 			plan: upcloud.Plan{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0},
 			expected: map[string]string{
-				LabelInstanceFamily:      "CLOUDNATIVE",
-				LabelInstanceCPU:         "2",
-				LabelInstanceMemory:      "4096",
-				LabelInstanceStorageSize: "0",
+				v1alpha2.LabelInstanceFamily:      "CLOUDNATIVE",
+				v1alpha2.LabelInstanceCPU:         "2",
+				v1alpha2.LabelInstanceMemory:      "4096",
+				v1alpha2.LabelInstanceStorageSize: "0",
 			},
-			absent: []string{LabelInstanceGPUCount, LabelInstanceGPUModel},
+			absent: []string{v1alpha2.LabelInstanceGPUCount, v1alpha2.LabelInstanceGPUModel},
 		},
 		{
 			name: "gpu plan",
 			plan: upcloud.Plan{Name: "GPU-8xCPU-64GB-1xL4", CoreNumber: 8, MemoryAmount: 65536, StorageSize: 50, GPUAmount: 1, GPUModel: "NVIDIA L4"},
 			expected: map[string]string{
-				LabelInstanceFamily:      "GPU",
-				LabelInstanceCPU:         "8",
-				LabelInstanceMemory:      "65536",
-				LabelInstanceStorageSize: "50",
-				LabelInstanceGPUCount:    "1",
-				LabelInstanceGPUModel:    "NVIDIA L4",
+				v1alpha2.LabelInstanceFamily:      "GPU",
+				v1alpha2.LabelInstanceCPU:         "8",
+				v1alpha2.LabelInstanceMemory:      "65536",
+				v1alpha2.LabelInstanceStorageSize: "50",
+				v1alpha2.LabelInstanceGPUCount:    "1",
+				v1alpha2.LabelInstanceGPUModel:    "NVIDIA L4",
 			},
 		},
 		{
 			name: "starter plan",
 			plan: upcloud.Plan{Name: "STARTER-1xCPU-2GB", CoreNumber: 1, MemoryAmount: 2048, StorageSize: 20},
 			expected: map[string]string{
-				LabelInstanceFamily:      "STARTER",
-				LabelInstanceCPU:         "1",
-				LabelInstanceMemory:      "2048",
-				LabelInstanceStorageSize: "20",
+				v1alpha2.LabelInstanceFamily:      "STARTER",
+				v1alpha2.LabelInstanceCPU:         "1",
+				v1alpha2.LabelInstanceMemory:      "2048",
+				v1alpha2.LabelInstanceStorageSize: "20",
 			},
-			absent: []string{LabelInstanceGPUCount, LabelInstanceGPUModel},
+			absent: []string{v1alpha2.LabelInstanceGPUCount, v1alpha2.LabelInstanceGPUModel},
 		},
 	}
 

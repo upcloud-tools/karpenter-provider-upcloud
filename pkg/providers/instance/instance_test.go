@@ -47,36 +47,36 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	foundClusterName := false
 	foundGeneratedName := false
 	for _, l := range *srv.gotReq.Labels {
-		if l.Key == managedLabelKey && l.Value == managedLabelValue {
+		if l.Key == v1alpha2.ServerManagedLabelKey && l.Value == v1alpha2.ServerManagedLabelValue {
 			foundManaged = true
 		}
 		if l.Key == "team" && l.Value == "ai" {
 			foundTeam = true
 		}
-		if l.Key == "capu_cluster_id" && l.Value == "cluster-uuid" {
+		if l.Key == v1alpha2.ServerClusterIDLabelKey && l.Value == "cluster-uuid" {
 			foundClusterID = true
 		}
-		if l.Key == "capu_cluster_name" && l.Value == "cluster-name" {
+		if l.Key == v1alpha2.ServerClusterNameLabelKey && l.Value == "cluster-name" {
 			foundClusterName = true
 		}
-		if l.Key == "capu_generated_name" && l.Value == "karpenter-abc" {
+		if l.Key == v1alpha2.ServerGeneratedNameLabelKey && l.Value == "karpenter-abc" {
 			foundGeneratedName = true
 		}
 	}
 	if !foundManaged {
-		t.Errorf("expected managed_by=%s label on created server", managedLabelValue)
+		t.Errorf("expected managed_by=%s label on created server", v1alpha2.ServerManagedLabelValue)
 	}
 	if !foundTeam {
 		t.Errorf("expected caller-provided labels to be forwarded to the server")
 	}
 	if !foundClusterID {
-		t.Errorf("expected capu_cluster_id label on created server")
+		t.Errorf("expected %s label on created server", v1alpha2.ServerClusterIDLabelKey)
 	}
 	if !foundClusterName {
-		t.Errorf("expected capu_cluster_name label on created server")
+		t.Errorf("expected %s label on created server", v1alpha2.ServerClusterNameLabelKey)
 	}
 	if !foundGeneratedName {
-		t.Errorf("expected capu_generated_name label on created server")
+		t.Errorf("expected %s label on created server", v1alpha2.ServerGeneratedNameLabelKey)
 	}
 	if len(srv.gotReq.StorageDevices) != 1 {
 		t.Errorf("expected one storage device, got %d", len(srv.gotReq.StorageDevices))
@@ -107,7 +107,7 @@ func TestCreateUsesCustomStorage(t *testing.T) {
 
 // TestIsManaged verifies that servers with the managed label are detected as managed and servers without it are not.
 func TestIsManaged(t *testing.T) {
-	managed := upcloud.ServerDetails{Labels: upcloud.LabelSlice{{Key: managedLabelKey, Value: managedLabelValue}}}
+	managed := upcloud.ServerDetails{Labels: upcloud.LabelSlice{{Key: v1alpha2.ServerManagedLabelKey, Value: v1alpha2.ServerManagedLabelValue}}}
 	if !isManaged(managed) {
 		t.Errorf("expected managed server to be detected")
 	}
