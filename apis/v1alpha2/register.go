@@ -1,4 +1,4 @@
-package v1alpha1
+package v1alpha2
 
 import (
 	"fmt"
@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	Group   = "karpenter.upcloud.com"
-	Version = "v1alpha1"
+	Group   = "karpenter.k8s.upcloud"
+	Version = "v1alpha2"
 )
 
 var (

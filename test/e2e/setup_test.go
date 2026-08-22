@@ -15,7 +15,7 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
 	"github.com/stretchr/testify/require"
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/cloudprovider"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/controllers/nodeclaimttl"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
@@ -75,7 +75,7 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(scheme), "adding clientgo scheme")
-	require.NoError(t, v1alpha1.AddToScheme(scheme), "adding upcloud scheme")
+	require.NoError(t, v1alpha2.AddToScheme(scheme), "adding upcloud scheme")
 
 	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Group: "karpenter.sh", Version: "v1"})
 	scheme.AddKnownTypes(schema.GroupVersion{Group: "karpenter.sh", Version: "v1"}, &karpv1.NodeClaim{}, &karpv1.NodeClaimList{})
@@ -164,12 +164,12 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	t.Helper()
 
 	nodeclassName := "e2e-ttl-" + env.runID
-	nodeclass := &v1alpha1.UpCloudNodeClass{
+	nodeclass := &v1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
-		Spec: v1alpha1.UpCloudNodeClassSpec{
+		Spec: v1alpha2.UpCloudNodeClassSpec{
 			Zone: os.Getenv("UPCLOUD_E2E_ZONE"),
 			Plan: plan,
-			Storage: &v1alpha1.StorageSpec{
+			Storage: &v1alpha2.StorageSpec{
 				Size: 20,
 				Tier: upcloud.StorageTierStandard,
 			},
@@ -186,7 +186,7 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 		Spec: karpv1.NodeClaimSpec{
 			NodeClassRef: &karpv1.NodeClassReference{
 				Kind:  "UpCloudNodeClass",
-				Group: "karpenter.upcloud.com",
+				Group: "karpenter.k8s.upcloud",
 				Name:  nodeclassName,
 			},
 			Requirements: []karpv1.NodeSelectorRequirementWithMinValues{
@@ -218,13 +218,13 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 			Name:   created.Name,
 			Labels: created.Labels,
 			Annotations: map[string]string{
-				v1alpha1.NodeClassHashAnnotationKey: created.Annotations[v1alpha1.NodeClassHashAnnotationKey],
+				v1alpha2.NodeClassHashAnnotationKey: created.Annotations[v1alpha2.NodeClassHashAnnotationKey],
 			},
 		},
 		Spec: karpv1.NodeClaimSpec{
 			NodeClassRef: &karpv1.NodeClassReference{
 				Kind:  "UpCloudNodeClass",
-				Group: "karpenter.upcloud.com",
+				Group: "karpenter.k8s.upcloud",
 				Name:  nodeclassName,
 			},
 			Requirements: nodeClaim.Spec.Requirements,
@@ -402,7 +402,7 @@ func (env *e2eTestEnv) patchTTLToExpire(t *testing.T, ncName string) {
 	if nc.Annotations == nil {
 		nc.Annotations = map[string]string{}
 	}
-	nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey] = time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+	nc.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey] = time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 	require.NoError(t, env.kubeClient.Patch(env.ctx, nc, patch), "patching TTL annotation")
 	t.Logf("patched TTL annotation to 1h ago on NodeClaim %s", ncName)
 }

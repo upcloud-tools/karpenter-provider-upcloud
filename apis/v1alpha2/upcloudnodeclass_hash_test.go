@@ -1,4 +1,4 @@
-package v1alpha1
+package v1alpha2
 
 import (
 	"testing"
@@ -52,7 +52,7 @@ func TestHashChangesWithSpec(t *testing.T) {
 }
 
 func TestNodeClassHashAnnotationKey(t *testing.T) {
-	if NodeClassHashAnnotationKey != "karpenter.upcloud.com/nodeclass-hash" {
+	if NodeClassHashAnnotationKey != "karpenter.k8s.upcloud/nodeclass-hash" {
 		t.Errorf("unexpected annotation key %q", NodeClassHashAnnotationKey)
 	}
 }

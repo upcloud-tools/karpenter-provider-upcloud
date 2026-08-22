@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	// Register UpCloudNodeClass types with the global scheme.
-	_ "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	_ "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 func main() {

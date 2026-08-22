@@ -1,4 +1,4 @@
-package v1alpha1
+package v1alpha2
 
 import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"

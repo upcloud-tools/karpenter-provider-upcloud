@@ -59,7 +59,7 @@ An `UpCloudNodeClass` is roughly equivalent to a UKS node group's configuration.
 
 A NodePool references an `UpCloudNodeClass` to say "provision nodes with this configuration." The NodePool's `requirements` field selects which instance types (plans) are acceptable; the NodeClass provides the rest of the config.
 
-**Where this matters:** `apis/v1alpha1/upcloudnodeclass_types.go`, `pkg/cloudprovider/cloudprovider.go` — `resolveNodeClass()`.
+**Where this matters:** `apis/v1alpha2/upcloudnodeclass_types.go`, `pkg/cloudprovider/cloudprovider.go` — `resolveNodeClass()`.
 
 ### Instance Types Are UpCloud Plans
 

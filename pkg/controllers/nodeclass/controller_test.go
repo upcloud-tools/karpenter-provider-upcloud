@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/awslabs/operatorpkg/status"
-	apiv1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	apiv1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"

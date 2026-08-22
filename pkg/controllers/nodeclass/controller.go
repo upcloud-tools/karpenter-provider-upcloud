@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/awslabs/operatorpkg/status"
-	apiv1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	apiv1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"

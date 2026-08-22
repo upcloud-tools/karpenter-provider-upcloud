@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 // Controller implements an absolute-lifetime TTL eviction controller for NodeClaims.
@@ -90,7 +90,7 @@ func (c *Controller) resetTTL(ctx context.Context, nc *karpv1.NodeClaim, reason 
 	if nc.Annotations == nil {
 		nc.Annotations = map[string]string{}
 	}
-	nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey] = time.Now().Format(time.RFC3339)
+	nc.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey] = time.Now().Format(time.RFC3339)
 	if err := c.Patch(ctx, nc, patch); err != nil {
 		return reconcile.Result{}, fmt.Errorf("patching TTL reset: %w", err)
 	}
@@ -101,7 +101,7 @@ func (c *Controller) resetTTL(ctx context.Context, nc *karpv1.NodeClaim, reason 
 // ttlStart returns the effective TTL start time: either the last reset annotation or the NodeClaim's metadata.creationTimestamp.
 func ttlStart(nc *karpv1.NodeClaim) time.Time {
 	if nc.Annotations != nil {
-		if v, ok := nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]; ok {
+		if v, ok := nc.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey]; ok {
 			if t, err := time.Parse(time.RFC3339, v); err == nil {
 				return t
 			}
@@ -259,13 +259,13 @@ func instancePlan(node *corev1.Node) string {
 // taintNode adds the decommissioning NoSchedule taint if not already present.
 func (c *Controller) taintNode(ctx context.Context, node *corev1.Node) error {
 	for _, t := range node.Spec.Taints {
-		if t.Key == v1alpha1.DecommissioningTaintKey {
+		if t.Key == v1alpha2.DecommissioningTaintKey {
 			return nil // already tainted
 		}
 	}
 	patch := client.MergeFrom(node.DeepCopy())
 	node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
-		Key:    v1alpha1.DecommissioningTaintKey,
+		Key:    v1alpha2.DecommissioningTaintKey,
 		Effect: corev1.TaintEffectNoSchedule,
 	})
 	return c.Patch(ctx, node, patch)

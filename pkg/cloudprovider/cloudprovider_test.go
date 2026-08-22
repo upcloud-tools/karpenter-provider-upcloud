@@ -11,7 +11,7 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
-	apisv1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	apisv1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
@@ -119,13 +119,13 @@ func newTestProvider(t *testing.T) (*UpCloudCloudProvider, *fakeServer, client.C
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		t.Fatalf("add clientgo scheme: %v", err)
 	}
-	if err := apisv1alpha1.AddToScheme(scheme); err != nil {
+	if err := apisv1alpha2.AddToScheme(scheme); err != nil {
 		t.Fatalf("add upcloud scheme: %v", err)
 	}
 
-	nodeClass := &apisv1alpha1.UpCloudNodeClass{
+	nodeClass := &apisv1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
-		Spec: apisv1alpha1.UpCloudNodeClassSpec{
+		Spec: apisv1alpha2.UpCloudNodeClassSpec{
 			Zone:   "de-fra1",
 			Plan:   "GPU-4xCPU-8GB",
 			Labels: map[string]string{"team": "ai"},
@@ -284,7 +284,7 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected managed=true label on created server")
 	}
 	// the NodeClaim must carry the NodeClass hash annotation for drift detection
-	if created.Annotations[apisv1alpha1.NodeClassHashAnnotationKey] == "" {
+	if created.Annotations[apisv1alpha2.NodeClassHashAnnotationKey] == "" {
 		t.Errorf("expected NodeClass hash annotation on created NodeClaim")
 	}
 }
@@ -326,7 +326,7 @@ func TestCreateUsesNodeClassPlanWhenNoInstanceTypeRequirement(t *testing.T) {
 	nc.Spec.NodeClassRef.Name = "default"
 	// When Karpenter does not supply an instance-type requirement (LabelInstanceTypeStable),
 	// Create falls back to the NodeClass plan. Capacity-type enforcement is handled by Karpenter's scheduler, not the provider.
-	stored := &apisv1alpha1.UpCloudNodeClass{}
+	stored := &apisv1alpha2.UpCloudNodeClass{}
 	if err := cp.Client.Get(context.Background(), types.NamespacedName{Name: "default"}, stored); err != nil {
 		t.Fatalf("getting nodeclass: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestIsDriftedNodeClassChanged(t *testing.T) {
 	}
 
 	// Mutate the live NodeClass so its hash no longer matches the NodeClaim's annotation.
-	nc := &apisv1alpha1.UpCloudNodeClass{}
+	nc := &apisv1alpha2.UpCloudNodeClass{}
 	if err := kubeClient.Get(context.Background(), types.NamespacedName{Name: "default"}, nc); err != nil {
 		t.Fatalf("get nodeclass: %v", err)
 	}
@@ -423,7 +423,7 @@ func TestIsDriftedNoAnnotation(t *testing.T) {
 		t.Fatalf("Create error: %v", err)
 	}
 	// Simulate a node created before drift detection existed: no hash annotation.
-	delete(created.Annotations, apisv1alpha1.NodeClassHashAnnotationKey)
+	delete(created.Annotations, apisv1alpha2.NodeClassHashAnnotationKey)
 
 	reason, err := cp.IsDrifted(context.Background(), created)
 	if err != nil {

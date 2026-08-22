@@ -10,7 +10,7 @@ rules:
     resources: ["nodeclaims", "nodeclaims/status", "nodepools", "nodepools/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Provider node class.
-  - apiGroups: ["karpenter.upcloud.com"]
+  - apiGroups: ["karpenter.k8s.upcloud"]
     resources: ["upcloudnodeclasses", "upcloudnodeclasses/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Nodes: observe + manage (label/taint/drain/terminate during disruption).

@@ -1,4 +1,4 @@
-package v1alpha1
+package v1alpha2
 
 import (
 	"crypto/sha256"
@@ -8,7 +8,7 @@ import (
 
 // NodeClassHashAnnotationKey is the annotation Karpenter stores on a NodeClaim at creation containing the hash of the UpCloudNodeClass 
 // it was provisioned against. IsDrifted compares this stored value against the live NodeClass hash to detect configuration drift.
-const NodeClassHashAnnotationKey = "karpenter.upcloud.com/nodeclass-hash"
+const NodeClassHashAnnotationKey = "karpenter.k8s.upcloud/nodeclass-hash"
 
 // Hash returns a stable hash of the UpCloudNodeClass desired state. Go's json.Marshal sorts
 // map keys, so the output is deterministic across runs and nodes.

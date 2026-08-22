@@ -38,7 +38,7 @@ All notable changes to this project will be documented in this file.
 - End-to-end tests: `test/e2e` exercises instance-type discovery against the real UpCloud API (skipped without `UPCLOUD_TOKEN` / `UPCLOUD_KUBERNETES_CLUSTER_ID`). A gated provisioning test (`TestLiveCloudProviderCreate`) drives the full `cloudprovider.Create` path — kubelet cert (self-approved CSR), userdata, real `CreateServer` — against a live cluster, and cleans the server up afterwards. It only runs when `UPCLOUD_E2E_PROVISION=1` is set.
 
 ### Fixed
-- Server creation now applies the `karpenter.upcloud.com/managed=true` label to provisioned servers, so `List()` correctly discovers Karpenter-managed nodes (previously the label was computed but never sent to the API, causing `List()` to return nothing).
+- Server creation now applies the `karpenter.k8s.upcloud/managed=true` label to provisioned servers, so `List()` correctly discovers Karpenter-managed nodes (previously the label was computed but never sent to the API, causing `List()` to return nothing).
 
 ## [0.9.0] - 2026-07-03
 

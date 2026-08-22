@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       nodeClassRef:
-        group: karpenter.upcloud.com
+        group: karpenter.k8s.upcloud
         kind: UpCloudNodeClass
         name: default
       requirements:

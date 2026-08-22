@@ -1,4 +1,4 @@
-apiVersion: karpenter.upcloud.com/v1alpha1
+apiVersion: karpenter.k8s.upcloud/v1alpha2
 kind: UpCloudNodeClass
 metadata:
   name: default

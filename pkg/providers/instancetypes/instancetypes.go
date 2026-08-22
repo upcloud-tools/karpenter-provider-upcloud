@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +22,25 @@ import (
 // ResourceNvidiaGPU is the standard Kubernetes GPU resource. Advertising it on GPU instance
 // types lets Karpenter schedule pods that request nvidia.com/gpu.
 const ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
+
+// Label domain for UpCloud-specific instance type metadata. NodePools can select on these labels
+// to target specific instance characteristics without enumerating plan names.
+const (
+	LabelDomain = "karpenter.k8s.upcloud"
+
+	// Instance family extracted from the plan name prefix (CLOUDNATIVE, GPU, STARTER, PREMIUM, DEV).
+	LabelInstanceFamily = LabelDomain + "/instance-family"
+	// CPU core count.
+	LabelInstanceCPU = LabelDomain + "/instance-cpu"
+	// Memory in MiB.
+	LabelInstanceMemory = LabelDomain + "/instance-memory"
+	// Storage size in GB.
+	LabelInstanceStorageSize = LabelDomain + "/instance-storage-size"
+	// GPU count (only present on GPU plans).
+	LabelInstanceGPUCount = LabelDomain + "/instance-gpu-count"
+	// GPU model name (only present on GPU plans, e.g. "L4").
+	LabelInstanceGPUModel = LabelDomain + "/instance-gpu-model"
+)
 
 // Provider caches UpCloud plans as Karpenter InstanceTypes, refreshed periodically from the UpCloud API.
 type Provider struct {
@@ -53,8 +71,8 @@ func (p *Provider) List() []*cloudprovider.InstanceType {
 	return lo.Values(p.instanceTypesByName)
 }
 
-// Refresh fetches all plans and prices from the UpCloud API, filters them by the configured Scope (CloudNative-first by default), 
-// and caches each as a separate InstanceType. Spot plans are surfaced with a spot capacity-type offering; all others get on-demand.
+// Refresh fetches all plans and prices from the UpCloud API and caches each as a separate InstanceType.
+// Spot plans are surfaced with a spot capacity-type offering; all others get on-demand.
 func (p *Provider) Refresh(ctx context.Context) error {
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("provider", "instancetypes"))
 
@@ -79,20 +97,11 @@ func (p *Provider) Refresh(ctx context.Context) error {
 	// Each plan (on-demand and spot) is surfaced as its own instance type. Spot plans are distinguished from on-demand by their
 	// capacity-type offering, which Karpenter selects via the karpenter.sh/capacity-type requirement.
 	built := make(map[string]*cloudprovider.InstanceType, len(plans.Plans))
-	scope := resolveScopeFromEnv()
-	excluded := 0
 	for _, plan := range plans.Plans {
-		if !scope.includes(plan) {
-			excluded++
-			continue
-		}
 		it := p.buildInstanceTypeWithPrices(plan, prices)
 		if it != nil {
 			built[plan.Name] = it
 		}
-	}
-	if excluded > 0 {
-		log.FromContext(ctx).V(1).Info("excluded plans outside configured scope", "excluded", excluded)
 	}
 
 	p.mu.Lock()
@@ -191,6 +200,16 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, string(corev1.Linux)),
 		scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, p.zone),
 		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
+		scheduling.NewRequirement(LabelInstanceFamily, corev1.NodeSelectorOpIn, instanceFamily(plan.Name)),
+		scheduling.NewRequirement(LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.CoreNumber)),
+		scheduling.NewRequirement(LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.MemoryAmount)),
+		scheduling.NewRequirement(LabelInstanceStorageSize, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.StorageSize)),
+	}
+	if plan.GPUAmount > 0 {
+		reqs = append(reqs,
+			scheduling.NewRequirement(LabelInstanceGPUCount, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.GPUAmount)),
+			scheduling.NewRequirement(LabelInstanceGPUModel, corev1.NodeSelectorOpIn, plan.GPUModel),
+		)
 	}
 
 	return &cloudprovider.InstanceType{
@@ -202,59 +221,18 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 	}
 }
 
-// Scope controls which UpCloud plans are surfaced as Karpenter instance types.
-// The default is CloudNative-first: CLOUDNATIVE and GPU plans are included, while STARTER and PREMIUM require an explicit opt-in.
-type Scope struct {
-	AllowStarter bool
-	AllowPremium bool
-}
-
-// resolveScopeFromEnv reads the instance-type scope from environment variables:
-//   - UPCLOUD_ALLOW_STARTER_PLANS: include STARTER plans
-//   - UPCLOUD_ALLOW_PREMIUM_PLANS: include PREMIUM plans
-func resolveScopeFromEnv() Scope {
-	return Scope{
-		AllowStarter: isTruthy(os.Getenv("UPCLOUD_ALLOW_STARTER_PLANS")),
-		AllowPremium: isTruthy(os.Getenv("UPCLOUD_ALLOW_PREMIUM_PLANS")),
-	}
-}
-
-// isTruthy interprets common truthy string values (1, true, yes, on) as boolean true.
-func isTruthy(v string) bool {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "1", "true", "yes", "on":
-		return true
-	}
-	return false
-}
-
-// isGPUPlan returns true for plans that include GPU accelerators.
-func isGPUPlan(p upcloud.Plan) bool { return p.GPUAmount > 0 }
-
-// isCloudNativePlan returns true for plans with the CLOUDNATIVE- prefix.
-func isCloudNativePlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "CLOUDNATIVE-") }
-
-// isStarterPlan returns true for plans with the STARTER- prefix.
-func isStarterPlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "STARTER-") }
-
-// isPremiumPlan returns true for plans with the PREMIUM- prefix.
-func isPremiumPlan(p upcloud.Plan) bool { return strings.HasPrefix(p.Name, "PREMIUM-") }
-
 // isSpotPlan reports whether a plan name denotes a spot variant (UpCloud encodes spot in the plan name, e.g. "GPU-SPOT-8xCPU-64GB-1xL4").
 func isSpotPlan(name string) bool {
 	return strings.Contains(strings.ToUpper(name), "SPOT")
 }
 
-// includes reports whether a plan should be surfaced as an instance type under this scope.
-func (s Scope) includes(p upcloud.Plan) bool {
-	switch {
-	case isCloudNativePlan(p) || isGPUPlan(p):
-		return true
-	case isStarterPlan(p):
-		return s.AllowStarter
-	case isPremiumPlan(p):
-		return s.AllowPremium
-	default:
-		return false
+// instanceFamily extracts the family prefix from a plan name (e.g. "CLOUDNATIVE-2xCPU-4GB" → "CLOUDNATIVE",
+// "GPU-SPOT-8xCPU-64GB-1xL4" → "GPU"). Returns "UNKNOWN" if no known prefix matches.
+func instanceFamily(name string) string {
+	for _, prefix := range []string{"CLOUDNATIVE", "GPU", "STARTER", "PREMIUM"} {
+		if strings.HasPrefix(name, prefix+"-") || strings.HasPrefix(name, prefix) {
+			return prefix
+		}
 	}
+	return "UNKNOWN"
 }

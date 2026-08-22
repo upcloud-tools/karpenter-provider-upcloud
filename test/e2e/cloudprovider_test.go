@@ -15,7 +15,7 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 
 	corev1 "k8s.io/api/core/v1"
@@ -72,12 +72,12 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	capacityType := env.envCapacityType()
 
 	nodeclassName := "e2e-" + env.runID
-	nodeclass := &v1alpha1.UpCloudNodeClass{
+	nodeclass := &v1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
-		Spec: v1alpha1.UpCloudNodeClassSpec{
+		Spec: v1alpha2.UpCloudNodeClassSpec{
 			Zone: env.zone,
 			Plan: plan,
-			Storage: &v1alpha1.StorageSpec{
+			Storage: &v1alpha2.StorageSpec{
 				Size: 20,
 				Tier: upcloud.StorageTierStandard,
 			},

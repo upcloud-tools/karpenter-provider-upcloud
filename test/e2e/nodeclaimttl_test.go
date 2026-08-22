@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +53,7 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 	} else {
 		hasTaint := false
 		for _, taint := range finalNode.Spec.Taints {
-			if taint.Key == v1alpha1.DecommissioningTaintKey && taint.Effect == corev1.TaintEffectNoSchedule {
+			if taint.Key == v1alpha2.DecommissioningTaintKey && taint.Effect == corev1.TaintEffectNoSchedule {
 				hasTaint = true
 				break
 			}
@@ -147,7 +147,7 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
 
-	resetAt, ok := nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]
+	resetAt, ok := nc.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey]
 	require.True(t, ok, "expected TTL reset annotation")
 
 	resetTime, err := time.Parse(time.RFC3339, resetAt)
@@ -175,7 +175,7 @@ func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
 
-	resetAt, ok := nc.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]
+	resetAt, ok := nc.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey]
 	require.True(t, ok, "expected TTL reset annotation")
 
 	resetTime, err := time.Parse(time.RFC3339, resetAt)

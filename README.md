@@ -82,7 +82,7 @@ This provider integrates Karpenter with UpCloud's compute API to provision indiv
 
 ### Drift detection
 
-When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.upcloud.com/nodeclass-hash`).
+When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.k8s.upcloud/nodeclass-hash`).
 On every reconciliation `IsDrifted()` compares that stored hash against the live `UpCloudNodeClass`. If they differ, the NodeClaim is marked drifted and Karpenter cordons, drains, and terminates it so a replacement is launched with the new config.
 
 The following fields trigger drift when changed: `zone`, `plan`, `storage`, `sshKeys`, `kubeletArgs`, `labels`, and `taints`.
@@ -195,7 +195,7 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 ```
 ├── cmd/karpenter-upcloud/     ← entry point + Containerfile
 ├── internal/version/          ← build-time version info
-├── apis/v1alpha1/             ← UpCloudNodeClass CRD types
+├── apis/v1alpha2/             ← UpCloudNodeClass CRD types
 ├── pkg/
 │   ├── cloudprovider/         ← core provider implementation
 │   │   └── helpers.go          ← bootstrap token + CA bundle

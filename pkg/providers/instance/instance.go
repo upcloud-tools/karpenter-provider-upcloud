@@ -9,7 +9,7 @@ import (
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
 
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 const managedLabelKey = "managed_by"
@@ -38,7 +38,7 @@ func NewProvider(svc service.Server, templateUUID, networkUUID, clusterID, clust
 
 // Create provisions a new UpCloud server: clones the template storage, attaches private/utility/public networking, injects
 // userdata (containing kubelet config and TLS certs), and applies the managed marker label.
-func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storage *v1alpha1.StorageSpec) (*upcloud.ServerDetails, error) {
+func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData string, labels map[string]string, storage *v1alpha2.StorageSpec) (*upcloud.ServerDetails, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}

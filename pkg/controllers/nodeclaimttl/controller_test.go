@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 )
 
 const defaultCloudNativePlan = "CLOUDNATIVE-2xCPU-4GB"
@@ -161,7 +161,7 @@ func TestReuseForMatchingPendingPod(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "nc1"}, got); err != nil {
 		t.Fatalf("get after reconcile: %v", err)
 	}
-	if got.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey] == "" {
+	if got.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey] == "" {
 		t.Fatal("expected TTL reset annotation for pending pod reuse")
 	}
 }
@@ -192,7 +192,7 @@ func TestReuseForPendingPodToleratesTaint(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "nc1"}, got); err != nil {
 		t.Fatalf("get after reconcile: %v", err)
 	}
-	if got.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey] == "" {
+	if got.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey] == "" {
 		t.Fatal("expected TTL reset annotation for pending pod reuse")
 	}
 }
@@ -312,7 +312,7 @@ func TestResetOnNonDSPods(t *testing.T) {
 	if got.Annotations == nil {
 		t.Fatal("expected annotations after reset")
 	}
-	resetAt, ok := got.Annotations[v1alpha1.NodeClaimTTLResetAnnotationKey]
+	resetAt, ok := got.Annotations[v1alpha2.NodeClaimTTLResetAnnotationKey]
 	if !ok {
 		t.Fatal("expected TTL reset annotation")
 	}
@@ -325,7 +325,7 @@ func TestResetOnNonDSPods(t *testing.T) {
 func TestResetRespectedOnNextReconcile(t *testing.T) {
 	resetAt := time.Now().Add(-10 * time.Minute).Format(time.RFC3339)
 	nc := nodeClaim("nc1", "node1",
-		map[string]string{v1alpha1.NodeClaimTTLResetAnnotationKey: resetAt},
+		map[string]string{v1alpha2.NodeClaimTTLResetAnnotationKey: resetAt},
 		time.Now().Add(-1*time.Hour))
 	appPod := pod("app1", "node1", false)
 	c := newController(t, nc, appPod)
@@ -358,7 +358,7 @@ func TestTaintAddedBeforeDelete(t *testing.T) {
 
 	hasTaint := false
 	for _, taint := range gotNode.Spec.Taints {
-		if taint.Key == v1alpha1.DecommissioningTaintKey && taint.Effect == corev1.TaintEffectNoSchedule {
+		if taint.Key == v1alpha2.DecommissioningTaintKey && taint.Effect == corev1.TaintEffectNoSchedule {
 			hasTaint = true
 			break
 		}

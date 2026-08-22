@@ -19,7 +19,7 @@ import (
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 
-	v1alpha1 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha1"
+	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
@@ -156,7 +156,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 			Name:   serverName,
 			Labels: nodeLabels,
 			Annotations: map[string]string{
-				v1alpha1.NodeClassHashAnnotationKey: nodeClass.Hash(),
+				v1alpha2.NodeClassHashAnnotationKey: nodeClass.Hash(),
 			},
 		},
 		Spec: karpv1.NodeClaimSpec{
@@ -234,7 +234,7 @@ func (p *UpCloudCloudProvider) IsDrifted(ctx context.Context, nodeClaim *karpv1.
 	}
 
 	// Nodes created before drift detection existed carry no hash annotation; don't disrupt them.
-	stored := nodeClaim.Annotations[v1alpha1.NodeClassHashAnnotationKey]
+	stored := nodeClaim.Annotations[v1alpha2.NodeClassHashAnnotationKey]
 	if stored == "" {
 		return "", nil
 	}
@@ -283,7 +283,7 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 
 func (p *UpCloudCloudProvider) GetSupportedNodeClasses() []status.Object {
 	return []status.Object{
-		&v1alpha1.UpCloudNodeClass{},
+		&v1alpha2.UpCloudNodeClass{},
 	}
 }
 
@@ -321,8 +321,8 @@ func isSpotPlan(name string) bool {
 	return strings.Contains(strings.ToUpper(name), "SPOT")
 }
 
-func (p *UpCloudCloudProvider) resolveNodeClass(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha1.UpCloudNodeClass, error) {
-	nc := &v1alpha1.UpCloudNodeClass{}
+func (p *UpCloudCloudProvider) resolveNodeClass(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha2.UpCloudNodeClass, error) {
+	nc := &v1alpha2.UpCloudNodeClass{}
 	if err := p.Client.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nc); err != nil {
 		return nil, err
 	}
