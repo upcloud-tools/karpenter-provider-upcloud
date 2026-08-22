@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/karpenter/pkg/scheduling"
 
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
+	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/util"
 )
 
 // Provider caches UpCloud plans as Karpenter InstanceTypes, refreshed periodically from the UpCloud API.
@@ -160,7 +161,7 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 	// Each plan is its own instance type. A spot plan (name contains "SPOT") gets a spot offering; otherwise on-demand.
 	// Karpenter selects between them via the capacity-type requirement, and passes the chosen plan name back through the NodeClaim.
 	capacityType := karpv1.CapacityTypeOnDemand
-	if v1alpha2.IsSpotPlan(plan.Name) {
+	if util.IsSpotPlan(plan.Name) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 	offerings := cloudprovider.Offerings{
@@ -179,7 +180,7 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, string(corev1.Linux)),
 		scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, p.zone),
 		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
-		scheduling.NewRequirement(v1alpha2.LabelInstanceFamily, corev1.NodeSelectorOpIn, instanceFamily(plan.Name)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceFamily, corev1.NodeSelectorOpIn, util.InstanceFamily(plan.Name)),
 		scheduling.NewRequirement(v1alpha2.LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.CoreNumber)),
 		scheduling.NewRequirement(v1alpha2.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.MemoryAmount)),
 		scheduling.NewRequirement(v1alpha2.LabelInstanceStorageSize, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.StorageSize)),
@@ -200,13 +201,4 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 	}
 }
 
-// instanceFamily extracts the family prefix from a plan name (e.g. "CLOUDNATIVE-2xCPU-4GB" → "CLOUDNATIVE",
-// "GPU-SPOT-8xCPU-64GB-1xL4" → "GPU"). Returns "UNKNOWN" if no known prefix matches.
-func instanceFamily(name string) string {
-	for _, prefix := range []string{"CLOUDNATIVE", "GPU", "STARTER", "PREMIUM"} {
-		if strings.HasPrefix(name, prefix+"-") || strings.HasPrefix(name, prefix) {
-			return prefix
-		}
-	}
-	return "UNKNOWN"
-}
+

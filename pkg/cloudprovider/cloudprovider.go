@@ -23,6 +23,7 @@ import (
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
+	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/util"
 )
 
 type UpCloudCloudProvider struct {
@@ -73,7 +74,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		plan = req.Values[0]
 	}
 	capacityType := karpv1.CapacityTypeOnDemand
-	if v1alpha2.IsSpotPlan(plan) {
+	if util.IsSpotPlan(plan) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 
@@ -249,7 +250,7 @@ func buildNodeClaim(server upcloud.ServerDetails, zone string) *karpv1.NodeClaim
 	allocatable := capacity.DeepCopy()
 
 	capacityType := karpv1.CapacityTypeOnDemand
-	if v1alpha2.IsSpotPlan(server.Plan) {
+	if util.IsSpotPlan(server.Plan) {
 		capacityType = karpv1.CapacityTypeSpot
 	}
 
