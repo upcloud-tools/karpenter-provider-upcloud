@@ -96,8 +96,10 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		return nil, fmt.Errorf("generating kubelet certificate: %w", err)
 	}
 
-	// Merge labels: topology (from zone) + instance-type info + nodeClass.Spec.Labels + nodeClaim.Labels
-	labels := lo.Assign(
+	// Node labels: all labels for cloud-init (kubelet --node-labels) and the NodeClaim.
+	// Includes Kubernetes-internal labels (topology, instance-type, arch, os, capacity-type, created-at)
+	// merged with user-defined labels from the NodeClass and NodeClaim.
+	nodeLabels := lo.Assign(
 		map[string]string{
 			"karpenter.sh/created-at":                  time.Now().Format(time.RFC3339),
 			"topology.kubernetes.io/region":            p.zone,
@@ -113,6 +115,11 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		nodeClaim.Labels,
 	)
 
+	// Server labels: only user-defined labels sent to the UpCloud server API.
+	// Kubernetes-internal labels (topology, instance-type, etc.) are not relevant to the UpCloud server.
+	// The instance provider adds its own managed markers (managed_by, capu_cluster_id, etc.) separately.
+	serverLabels := lo.Assign(nodeClass.Spec.Labels)
+
 	// Merge taints: uninitialized (baseline) + nodeClass.Spec.Taints + nodeClaim.Spec.Taints
 	taints := []corev1.Taint{karpv1.UnregisteredNoExecuteTaint}
 	taints = append(taints, lo.Map(nodeClass.Spec.Taints, func(t upcloud.KubernetesTaint, _ int) corev1.Taint {
@@ -125,14 +132,14 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		CACertPEM:         caCertPEM,
 		KubeletClientCert: certs.ClientCertPEM,
 		KubeletClientKey:  certs.ClientKeyPEM,
-		Labels:            labels,
+		Labels:            nodeLabels,
 		Taints:            taints,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generating userdata: %w", err)
 	}
 
-	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, labels, nodeClass.Spec.Storage)
+	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, serverLabels, nodeClass.Spec.Storage)
 	if err != nil {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("creating server: %w", err))
 	}
@@ -147,7 +154,7 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	return &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   serverName,
-			Labels: labels,
+			Labels: nodeLabels,
 			Annotations: map[string]string{
 				v1alpha1.NodeClassHashAnnotationKey: nodeClass.Hash(),
 			},

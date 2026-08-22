@@ -75,11 +75,17 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	nodeclass := &v1alpha1.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
 		Spec: v1alpha1.UpCloudNodeClassSpec{
-			Zone:        env.zone,
-			Plan:        plan,
-			StorageGB:   20,
-			StorageTier: upcloud.StorageTierStandard,
-			Labels:      map[string]string{"e2e-run": env.runID},
+			Zone: env.zone,
+			Plan: plan,
+			Storage: &v1alpha1.StorageSpec{
+				Size: 20,
+				Tier: upcloud.StorageTierStandard,
+			},
+			Labels: map[string]string{
+				"e2e-run":                 env.runID,
+				"node.kubernetes.io/test": "slash-label",
+				"karpenter.sh/test":       "dot-label",
+			},
 		},
 	}
 	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
@@ -159,6 +165,18 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	assert.True(t, created.Status.Capacity.Cpu().Value() > 0, "expected non-zero CPU capacity")
 	assert.Equal(t, capacityType, created.Labels[karpv1.CapacityTypeLabelKey], "capacity-type label")
 	assert.Equal(t, env.zone, created.Labels[corev1.LabelTopologyZone], "zone label")
+
+	// Verify labels passed through to the UpCloud server
+	server, err := env.instanceProvider.Get(env.ctx, serverUUID)
+	if assert.NoError(t, err, "getting server details for label validation") {
+		serverLabels := make(map[string]string)
+		for _, l := range server.Labels {
+			serverLabels[l.Key] = l.Value
+		}
+		assert.Equal(t, "slash-label", serverLabels["node.kubernetes.io/test"], "label with slash should be passed through to UpCloud server")
+		assert.Equal(t, "dot-label", serverLabels["karpenter.sh/test"], "label with dot should be passed through to UpCloud server")
+		assert.Equal(t, env.runID, serverLabels["e2e-run"], "e2e-run label should be passed through to UpCloud server")
+	}
 
 	got, err := env.cp.Get(env.ctx, created.Status.ProviderID)
 	if assert.NoError(t, err, "Get after Create") {

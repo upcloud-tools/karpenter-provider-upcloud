@@ -49,11 +49,6 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData st
 
 	labelSlice := &upcloud.LabelSlice{}
 	for k, v := range labels {
-		// UpCloud label keys cannot contain slashes or dots. Kubernetes-internal labels (e.g. node.kubernetes.io/instance-type,
-		// karpenter.sh/capacity-type, karpenter.upcloud.com/upcloudnodeclass) all fail that rule, so drop them.
-		if strings.ContainsAny(k, "/.") {
-			continue
-		}
 		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
 	}
 

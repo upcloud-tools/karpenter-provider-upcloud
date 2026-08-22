@@ -167,11 +167,13 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	nodeclass := &v1alpha1.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
 		Spec: v1alpha1.UpCloudNodeClassSpec{
-			Zone:        os.Getenv("UPCLOUD_E2E_ZONE"),
-			Plan:        plan,
-			StorageGB:   20,
-			StorageTier: upcloud.StorageTierStandard,
-			Labels:      map[string]string{"e2e-run": env.runID},
+			Zone: os.Getenv("UPCLOUD_E2E_ZONE"),
+			Plan: plan,
+			Storage: &v1alpha1.StorageSpec{
+				Size: 20,
+				Tier: upcloud.StorageTierStandard,
+			},
+			Labels: map[string]string{"e2e-run": env.runID},
 		},
 	}
 	
