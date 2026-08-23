@@ -62,7 +62,7 @@ jobs:
       needs.detect.outputs.skip == 'false' &&
       needs.build-image.result == 'success' &&
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
-    uses: upcloud-tools/gha-actions/.github/workflows/release-container.yaml@070918b27e20a6bd320cc93b569d912b1a227a6c
+    uses: upcloud-tools/gha-actions/.github/workflows/release-container.yaml@10904798a65e26c2fa67df45717698aec8b9e5ef
     with:
       app_version: ${{ needs.detect.outputs.app_version }}
     secrets: inherit
