@@ -1,0 +1,180 @@
+suite: nodeclass and nodepool
+tests:
+  - it: should NOT generate nodeclass or nodepool by default
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: nodeclass.yaml
+      - hasDocuments:
+          count: 0
+        template: nodepool.yaml
+
+  - it: should generate nodeclass when enabled
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        zone: de-fra1
+    template: nodeclass.yaml
+    asserts:
+      - isKind:
+          of: UpCloudNodeClass
+      - equal:
+          path: apiVersion
+          value: karpenter.k8s.upcloud/v1alpha2
+      - equal:
+          path: metadata.name
+          value: default
+      - equal:
+          path: spec.zone
+          value: de-fra1
+      - equal:
+          path: spec.plan
+          value: CLOUDNATIVE-2xCPU-4GB
+      - equal:
+          path: spec.templateUUID
+          value: "01000000-0000-4000-8000-000160150100"
+      - equal:
+          path: spec.storage.size
+          value: 20
+      - equal:
+          path: spec.storage.tier
+          value: standard
+      - equal:
+          path: spec.storage.encrypted
+          value: false
+
+  - it: should generate nodepool when enabled
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodePool:
+        enabled: true
+    template: nodepool.yaml
+    asserts:
+      - isKind:
+          of: NodePool
+      - equal:
+          path: apiVersion
+          value: karpenter.sh/v1
+      - equal:
+          path: metadata.name
+          value: default
+      - equal:
+          path: spec.template.spec.nodeClassRef.group
+          value: karpenter.k8s.upcloud
+      - equal:
+          path: spec.template.spec.nodeClassRef.kind
+          value: UpCloudNodeClass
+      - equal:
+          path: spec.template.spec.nodeClassRef.name
+          value: default
+      - equal:
+          path: spec.template.spec.expireAfter
+          value: "720h"
+      - equal:
+          path: spec.disruption.consolidationPolicy
+          value: WhenEmpty
+      - equal:
+          path: spec.disruption.consolidateAfter
+          value: "50m"
+
+  - it: should allow custom nodeclass values
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        name: custom-class
+        zone: fi-hel1
+        plan: CLOUDNATIVE-4xCPU-8GB
+        serverGroupUUID: "12345678-1234-1234-1234-123456789abc"
+        storage:
+          size: 100
+          tier: maxiops
+          encrypted: true
+    template: nodeclass.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-class
+      - equal:
+          path: spec.zone
+          value: fi-hel1
+      - equal:
+          path: spec.plan
+          value: CLOUDNATIVE-4xCPU-8GB
+      - equal:
+          path: spec.serverGroupUUID
+          value: "12345678-1234-1234-1234-123456789abc"
+      - equal:
+          path: spec.storage.size
+          value: 100
+      - equal:
+          path: spec.storage.tier
+          value: maxiops
+      - equal:
+          path: spec.storage.encrypted
+          value: true
+
+  - it: should omit serverGroupUUID when empty
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        zone: de-fra1
+    template: nodeclass.yaml
+    asserts:
+      - isNull:
+          path: spec.serverGroupUUID
+
+  - it: should allow custom nodepool instance types
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodePool:
+        enabled: true
+        instanceTypes:
+          - CLOUDNATIVE-8xCPU-16GB
+    template: nodepool.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.requirements[0].values
+          value:
+            - CLOUDNATIVE-8xCPU-16GB
+
+  - it: should have correct labels on nodeclass
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        zone: de-fra1
+    template: nodeclass.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  - it: should have correct labels on nodepool
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodePool:
+        enabled: true
+    template: nodepool.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: karpenter-upcloud
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm

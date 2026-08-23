@@ -8,11 +8,11 @@ Karpenter provider for UpCloud has been installed.
 {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "karpenter-upcloud.secretName" .) }}
 {{- if not $secret }}
 
-  [WARNING] Credential secret "{{ include "karpenter-upcloud.secretName" . }}" not found.
-  Create it with an UpCloud API token:
+   [WARNING] Credential secret "{{ include "karpenter-upcloud.secretName" . }}" not found.
+   Create it with an UpCloud API token:
 
-    kubectl --namespace {{ .Release.Namespace }} create secret generic {{ include "karpenter-upcloud.secretName" . }} \
-      --from-literal={{ .Values.config.auth.tokenKey }}=YOUR_TOKEN
+     kubectl --namespace {{ .Release.Namespace }} create secret generic {{ include "karpenter-upcloud.secretName" . }} \
+       --from-literal={{ .Values.config.auth.tokenKey }}=YOUR_TOKEN
 
 {{- else }}
 
@@ -25,34 +25,28 @@ Karpenter provider for UpCloud has been installed.
 
 {{- end }}
 
-3. Create an UpCloudNodeClass and NodePool to start provisioning:
+{{- if and .Values.nodeClass.enabled .Values.nodePool.enabled }}
 
-   kubectl apply -f - <<EOF
-   apiVersion: karpenter.upcloud.com/v1alpha1
-   kind: UpCloudNodeClass
-   metadata:
-     name: default
-   spec:
-     zone: de-fra1
-     plan: CLOUDNATIVE-2xCPU-4GB
-     storageGB: 20
-     storageTier: maxiops
-     sshKeys:
-       - "ssh-ed25519 AAAA..."
-   ---
-   apiVersion: karpenter.sh/v1
-   kind: NodePool
-   metadata:
-     name: default
-   spec:
-     template:
-       spec:
-         nodeClassRef:
-           group: karpenter.upcloud.com
-           kind: UpCloudNodeClass
-           name: default
-     disruption:
-       consolidationPolicy: Never
-   EOF
+3. UpCloudNodeClass "{{ .Values.nodeClass.name }}" and NodePool "{{ .Values.nodePool.name }}" created.
+
+{{- else if .Values.nodeClass.enabled }}
+
+3. UpCloudNodeClass "{{ .Values.nodeClass.name }}" created.
+   Create a NodePool to start provisioning nodes.
+   See: https://github.com/upcloud-tools/karpenter-provider-upcloud/tree/main/examples/nodepool.yaml
+
+{{- else if .Values.nodePool.enabled }}
+
+3. NodePool "{{ .Values.nodePool.name }}" created.
+   [WARNING] NodePool references NodeClass "{{ .Values.nodePool.nodeClassName }}" but no NodeClass was created.
+   Create an UpCloudNodeClass with name "{{ .Values.nodePool.nodeClassName }}" or set nodePool.enabled=false.
+
+{{- else }}
+
+3. Create an UpCloudNodeClass and NodePool to start provisioning:
+   https://github.com/upcloud-tools/karpenter-provider-upcloud/tree/main/examples
+   See also the chart README for configuring the bundled NodeClass and NodePool via values.
+
+{{- end }}
 
 Visit https://github.com/upcloud-tools/karpenter-provider-upcloud for more information.

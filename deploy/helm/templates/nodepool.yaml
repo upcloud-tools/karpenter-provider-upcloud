@@ -1,0 +1,28 @@
+{{- with .Values.nodePool }}
+{{- if .enabled }}
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: {{ .name | quote }}
+  labels:
+    {{- include "karpenter-upcloud.labels" $ | nindent 4 }}
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.upcloud
+        kind: UpCloudNodeClass
+        name: {{ .nodeClassName | quote }}
+      requirements:
+        - key: "node.kubernetes.io/instance-type"
+          operator: In
+          values:
+            {{- range .instanceTypes }}
+            - {{ . | quote }}
+            {{- end }}
+      expireAfter: {{ .expireAfter | quote }}
+  disruption:
+    consolidationPolicy: {{ .disruption.consolidationPolicy | quote }}
+    consolidateAfter: {{ .disruption.consolidateAfter | quote }}
+{{- end }}
+{{- end }}

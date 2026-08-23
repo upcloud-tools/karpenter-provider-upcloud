@@ -222,11 +222,12 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 │   ├── controllers/           ← Kubernetes controllers
 │   │   ├── nodeclaimttl/      ← alpha TTL controller
 │   │   └── nodeclass/         ← nodeclass reconciliation
-│   └── providers/
-│       ├── options.go          ← env var parsing
-│       ├── instance/           ← server lifecycle (Create/Delete/Get/List)
-│       ├── instancetypes/      ← plan discovery + cached pricing
-│       └── userdata/           ← cloud-init generation
+│   ├── providers/
+│   │   ├── options.go          ← env var parsing
+│   │   ├── instance/           ← server lifecycle (Create/Delete/Get/List)
+│   │   ├── instancetypes/      ← plan discovery + cached pricing
+│   │   └── userdata/           ← cloud-init generation
+│   └── util/                   ← shared utility helpers
 ├── deploy/helm/               ← Helm chart
 ├── examples/                  ← sample CRDs
 ├── Makefile

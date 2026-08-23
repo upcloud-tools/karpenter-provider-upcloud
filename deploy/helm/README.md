@@ -58,6 +58,21 @@ The following table lists the most commonly overridden values. All values are al
 | `config.repairToleration` | string | `30m` | How long an unhealthy node is tolerated before repair is triggered. |
 | `config.nodeclaimTTL.enabled` | bool | `false` | Use absolute TTLs to expire node claims. **Alpha** |
 | `config.nodeclaimTTL.ttl` | string | `50m` | TTL applied to node claims when enabled. |
+| `nodeClass.enabled` | bool | `false` | Create a default `UpCloudNodeClass`. |
+| `nodeClass.name` | string | `default` | Name of the `UpCloudNodeClass`. |
+| `nodeClass.zone` | string | `""` | **Required** when `nodeClass.enabled=true`. UpCloud zone for the node class. |
+| `nodeClass.plan` | string | `CLOUDNATIVE-2xCPU-4GB` | Default server plan. |
+| `nodeClass.serverGroupUUID` | string | `""` | Server group UUID for anti-affinity placement. |
+| `nodeClass.storage.size` | int | `20` | Root disk size in GB (minimum 10). |
+| `nodeClass.storage.tier` | string | `standard` | Root disk tier (`standard`, `maxiops`, `hdd`). |
+| `nodeClass.storage.encrypted` | bool | `false` | Encrypt the root disk at rest. |
+| `nodePool.enabled` | bool | `false` | Create a default `NodePool`. |
+| `nodePool.name` | string | `default` | Name of the `NodePool`. |
+| `nodePool.nodeClassName` | string | `default` | Name of the `UpCloudNodeClass` to reference. |
+| `nodePool.expireAfter` | string | `720h` | Maximum node lifetime. |
+| `nodePool.instanceTypes` | list | `["CLOUDNATIVE-2xCPU-4GB", "CLOUDNATIVE-4xCPU-8GB"]` | Allowed instance types. |
+| `nodePool.disruption.consolidationPolicy` | string | `WhenEmpty` | Consolidation policy (`WhenEmpty` or `WhenEmptyOrUnderutilized`). |
+| `nodePool.disruption.consolidateAfter` | string | `50m` | How long to wait before consolidating empty nodes. |
 | `image.repository` | string | `ghcr.io/upcloud-tools/karpenter-provider-upcloud` | Controller image repository. |
 | `image.tag` | string | `""` | Controller image tag (defaults to the chart `appVersion` when empty). |
 | `image.pullPolicy` | string | `IfNotPresent` | Image pull policy. |
@@ -87,5 +102,25 @@ The following table lists the most commonly overridden values. All values are al
 
 ## Using the provider
 
-Once installed, define an `UpCloudNodeClass` and a Karpenter `NodePool` to start provisioning UpCloud nodes.
+For a quick start, create a values file and install with a single command:
+
+```yaml
+# values.yaml
+config:
+  clusterUUID: <UPCLOUD_CLUSTER_UUID>
+  auth:
+    token: <UPCLOUD_API_TOKEN>
+nodeClass:
+  enabled: true
+  zone: de-fra1
+nodePool:
+  enabled: true
+```
+
+```sh
+helm install karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
+  --namespace kube-system -f values.yaml
+```
+
+For production use, manage `UpCloudNodeClass` and `NodePool` resources separately (`nodeClass.enabled: false`).
 For full provider documentation and examples, see the [project repository](https://github.com/upcloud-tools/karpenter-provider-upcloud).

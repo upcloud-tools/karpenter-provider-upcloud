@@ -1,0 +1,21 @@
+{{- with .Values.nodeClass }}
+{{- if .enabled }}
+apiVersion: karpenter.k8s.upcloud/v1alpha2
+kind: UpCloudNodeClass
+metadata:
+  name: {{ .name | quote }}
+  labels:
+    {{- include "karpenter-upcloud.labels" $ | nindent 4 }}
+spec:
+  zone: {{ required "nodeClass.zone is required when nodeClass.enabled=true" .zone | quote }}
+  plan: {{ .plan | quote }}
+  templateUUID: {{ $.Values.config.templateUUID | quote }}
+  storage:
+    size: {{ .storage.size }}
+    tier: {{ .storage.tier | quote }}
+    encrypted: {{ .storage.encrypted }}
+  {{- if .serverGroupUUID }}
+  serverGroupUUID: {{ .serverGroupUUID | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

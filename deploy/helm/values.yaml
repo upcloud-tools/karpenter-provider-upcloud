@@ -42,6 +42,31 @@ config:  # @schema additionalProperties: false
   # Repair toleration duration for unhealthy nodes.
   repairToleration: 30m  # @schema type: string
 
+# Optional: create a default UpCloudNodeClass.
+nodeClass:  # @schema additionalProperties: false
+  enabled: false
+  name: default  # @schema type: string
+  zone: ""  # @schema type: string
+  plan: CLOUDNATIVE-2xCPU-4GB  # @schema type: string
+  serverGroupUUID: ""  # @schema type: string
+  storage:  # @schema additionalProperties: false
+    size: 20  # @schema type: integer, minimum: 10
+    tier: standard  # @schema enum: ["standard", "maxiops", "hdd"]
+    encrypted: false
+
+# Optional: create a default NodePool.
+nodePool:  # @schema additionalProperties: false
+  enabled: false
+  name: default  # @schema type: string
+  nodeClassName: default  # @schema type: string
+  expireAfter: 720h  # @schema type: string
+  instanceTypes:  # @schema items: { type: string }
+    - CLOUDNATIVE-2xCPU-4GB
+    - CLOUDNATIVE-4xCPU-8GB
+  disruption:  # @schema additionalProperties: false
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 50m  # @schema type: string
+
 resources: {}  # @schema additionalProperties: false
   # requests:
   #   cpu: 100m
