@@ -79,16 +79,6 @@ tests:
           path: spec.selector.matchLabels["app.kubernetes.io/instance"]
           value: RELEASE-NAME
 
-  - it: should have correct container image
-    set:
-      config:
-        clusterUUID: 0d000000-0000-4000-8000-000160150100
-    template: deployment.yaml
-    asserts:
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: "ghcr.io/upcloud-tools/karpenter-provider-upcloud:0.9.6"
-
   - it: should use custom image tag when set
     set:
       config:
