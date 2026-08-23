@@ -6,9 +6,9 @@
 - **Breaking**: `UpCloudNodeClass` storage configuration refactored to nested `storage` struct:
   - `storageGB` → `storage.size`
   - `storageTier` → `storage.tier`
+- **Breaking**: `appVersion` in `Chart.yaml` now includes the `v` prefix (e.g., `v1.0.0` instead of `1.0.0`)
 - `serverGroupUUID` replaces `antiAffinity` boolean in `UpCloudNodeClass`
 - Updated `NOTES.txt` with current `v1alpha2` API references and guidance for new options
-- Bump app version to `v1.0.0` (Beta)
 
 ### Added
 - Optional `UpCloudNodeClass` creation via `nodeClass.enabled` (default `false`)
