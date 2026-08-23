@@ -10,6 +10,10 @@ on:
         options:
           - 'yes'
           - 'no'
+      image_tag:
+        type: string
+        description: Image tag to test (default latest)
+        default: latest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +25,8 @@ permissions:
 jobs:
   provisioning:
     uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      image_tag: ${{ inputs.image_tag }}
     secrets: inherit
 
   nodeclaimttl:
@@ -28,4 +34,5 @@ jobs:
     uses: ./.github/workflows/_reusable-e2e.yaml
     with:
       e2e_test: TestLiveNodeClaimTTL
+      image_tag: ${{ inputs.image_tag }}
     secrets: inherit

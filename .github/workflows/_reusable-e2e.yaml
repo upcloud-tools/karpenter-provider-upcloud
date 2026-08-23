@@ -5,12 +5,35 @@ on:
         required: false
         type: string
         default: TestLiveCloudProviderCreate
+      image_tag:
+        required: false
+        type: string
+        default: latest
 
 permissions:
   contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure kubeconfig
+        run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy via Helm
+        env:
+          CONTAINER_REPO: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: make deploy-test
+
   e2e:
+    needs: deploy
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -26,6 +49,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+
+      - name: Configure kubeconfig
+        run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
 
       - name: Live e2e (${{ matrix.capacityType }})
         env:
