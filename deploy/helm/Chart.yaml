@@ -2,7 +2,7 @@ apiVersion: v2
 name: karpenter-upcloud
 description: Karpenter provider for UpCloud
 type: application
-version: "1.1.0"
+version: "1.1.1"
 appVersion: "v1.0.0"
 kubeVersion: ">=1.31.0"
 keywords:
@@ -30,7 +30,15 @@ annotations:
       displayName: UpCloud Node Class
       description: Configuration for UpCloud node provisioning
   artifacthub.io/changes: |
-    - "Optional NodeClass and NodePool creation via values"
-    - "Improved NOTES.txt"
-    - "Breaking: storage values restructured"
-    - "Bump app version to `v1.0.0`"
+    - kind: fixed
+      description: Chart signing now visible on Artifact Hub (signatures stored in OCI registry)
+    - kind: added
+      description: artifacthub.io/crds annotation to display CRD information
+    - kind: added
+      description: Optional NodeClass and NodePool creation via values
+    - kind: changed
+      description: Improved NOTES.txt with current API references
+    - kind: changed
+      description: Breaking - storage values restructured to nested struct
+    - kind: changed
+      description: appVersion now includes v prefix (e.g., v1.0.0)

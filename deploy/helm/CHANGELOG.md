@@ -1,5 +1,13 @@
 # Helm chart changelog
 
+## [1.1.1] - 2026-08-23
+
+### Added
+- `artifacthub.io/crds` annotation to display CRD information on Artifact Hub
+
+### Fixed
+- Chart signing now visible on Artifact Hub (signatures stored in OCI registry)
+
 ## [1.1.0] - 2026-08-23
 
 ### Changed
