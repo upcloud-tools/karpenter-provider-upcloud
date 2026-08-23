@@ -23,6 +23,12 @@ annotations:
   artifacthub.io/links: |
     - name: Support
       url: https://github.com/upcloud-tools/karpenter-provider-upcloud/issues
+  artifacthub.io/crds: |
+    - kind: UpCloudNodeClass
+      version: v1alpha2
+      name: upcloudnodeclasses.karpenter.k8s.upcloud
+      displayName: UpCloud Node Class
+      description: Configuration for UpCloud node provisioning
   artifacthub.io/changes: |
     - "Optional NodeClass and NodePool creation via values"
     - "Improved NOTES.txt"
