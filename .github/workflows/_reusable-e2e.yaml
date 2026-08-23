@@ -30,6 +30,8 @@ jobs:
         env:
           CONTAINER_REPO: ${{ env.REGISTRY }}/${{ github.repository }}
           IMAGE_TAG: ${{ inputs.image_tag }}
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
         run: make deploy-test
 
   e2e:

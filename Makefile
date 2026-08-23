@@ -62,12 +62,12 @@ E2E_ENV := UPCLOUD_E2E_PROVISION=1 \
 test-e2e:
 	$(E2E_ENV) go test -tags e2e ./test/e2e/ -run $(E2E_TEST) -v -timeout $(E2E_TIMEOUT)
 
-UPCLOUD_KUBERNETES_CLUSTER_ID ?= 0dc6648b-b78b-4bfd-bda0-ffe4e8d56555
 DEPLOY_NAMESPACE ?= kube-system
 
 # Deploy to test cluster via Helm
 # Requires KUBECONFIG to be set and point to a valid cluster
 # UPCLOUD_KUBERNETES_CLUSTER_ID: cluster UUID for the provider
+# UPCLOUD_TOKEN: UpCloud API token for authentication
 # CONTAINER_REPO: container image repository
 # IMAGE_TAG: container image tag
 # HELM_OPTS: additional helm options
@@ -76,6 +76,7 @@ deploy-test:
 	@kubectl apply -f deploy/helm/crds/
 	@helm upgrade --install karpenter-provider-upcloud $(HELM_CHART_DIR) --namespace $(DEPLOY_NAMESPACE) \
 		--set config.clusterUUID=$(UPCLOUD_KUBERNETES_CLUSTER_ID) \
+		--set config.auth.token=$(UPCLOUD_TOKEN) \
 		--set image.repository=$(CONTAINER_REPO) \
 		--set image.tag=$(IMAGE_TAG) \
 		$(HELM_OPTS)
