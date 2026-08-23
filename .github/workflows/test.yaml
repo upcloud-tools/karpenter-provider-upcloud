@@ -28,15 +28,4 @@ permissions:
 
 jobs:
   test:
-    timeout-minutes: 5
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Run Go unit tests
-        run: make test
+    uses: upcloud-tools/gha-actions/.github/workflows/test-go.yaml@070918b27e20a6bd320cc93b569d912b1a227a6c

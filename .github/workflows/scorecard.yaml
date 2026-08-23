@@ -28,5 +28,5 @@ jobs:
       contents: read
       security-events: write
       id-token: write
-    uses: upcloud-tools/gha-actions/.github/workflows/scorecard.yaml@1dd7497095dbde7e8ae1b5f2afdad0a388821b74
+    uses: upcloud-tools/gha-actions/.github/workflows/scorecard.yaml@070918b27e20a6bd320cc93b569d912b1a227a6c
     secrets: inherit

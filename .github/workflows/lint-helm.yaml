@@ -21,41 +21,8 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  HELM_UNITTEST_VERSION: v1.1.2
-
 jobs:
   helm-lint:
-    timeout-minutes: 5
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Cache helm-unittest plugin
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.local/share/helm/plugins/
-          key: helm-unittest-${{ runner.os }}-${{ env.HELM_UNITTEST_VERSION }}
-
-      - name: Run helm lint and unit tests
-        run: make helm-test
-
-      - name: Run kube-linter
-        uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
-        with:
-          directory: deploy/helm
-          config: deploy/helm/.kube-linter.yaml
-          format: plain
-
-      - name: Render Helm chart
-        run: |
-          helm template ci-test deploy/helm/ \
-            --set config.clusterUUID=0d000000-0000-4000-8000-000160150100 \
-            > /tmp/rendered-manifests.yaml
-
-      - name: Run kubeconform
-        uses: aardbol/k8s-lint@4676a66f5a37b93f2cf75ecbe498d770b9d7d2ce # v5.1.0
-        with:
-          manifests: /tmp/rendered-manifests.yaml
-          lintType: kubeconform
-          kubeconformOpts: -summary -strict -ignore-missing-schemas
+    uses: upcloud-tools/gha-actions/.github/workflows/lint-helm.yaml@070918b27e20a6bd320cc93b569d912b1a227a6c
+    with:
+      helm_template_extra_args: --set config.clusterUUID=0d000000-0000-4000-8000-000160150100
