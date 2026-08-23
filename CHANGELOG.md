@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+The project is still in **Beta**, so expect breaking changes in future releases.
+
+## [1.0.0] - 2026-08-23
+
+### Added
+- `karpenter.sh/created-at` label stamped on NodeClaims at creation time. Enables garbage collection to distinguish just-launched servers from orphans.
+- `storage.encrypted` field in `UpCloudNodeClass` spec. Enables encryption at rest for the node's root disk.
+- `CONTRIBUTING.md` with UpCloud ↔ Karpenter concept map documenting load-bearing design decisions (provider ID format, zone/region parity, two-call deletion, label separation).
+- Rich instance type labels for NodePool selection: `karpenter.k8s.upcloud/instance-family`, `instance-cpu`, `instance-memory`, `instance-storage-size`, `instance-gpu-count`, `instance-gpu-model`. NodePools can now select on instance characteristics (e.g. "any GPU instance" or "≥4 CPU") without enumerating plan names.
+
+### Changed
+- **Breaking**: API version bumped from `v1alpha1` to `v1alpha2` to reflect breaking changes in the API group rename and storage configuration. All manifests must be updated to use `apiVersion: karpenter.k8s.upcloud/v1alpha2`.
+- **Breaking**: API group renamed from `karpenter.upcloud.com` to `karpenter.k8s.upcloud` to align with upstream Karpenter conventions. This affects:
+  - CRD API group: `upcloudnodeclasses.karpenter.k8s.upcloud`
+  - Annotations: `karpenter.k8s.upcloud/nodeclass-hash`, `karpenter.k8s.upcloud/ttl-reset-at`
+  - Taints: `karpenter.k8s.upcloud/decommissioning`
+  - NodeClassRef group in NodePool specs
+  - RBAC apiGroups
+- **Breaking**: Storage configuration refactored from flat fields to nested `storage` struct:
+  - `storageGB` → `storage.size`
+  - `storageTier` → `storage.tier`
+  - `storageEncrypted` → `storage.encrypted` (new)
+- **Breaking**: Removed `UPCLOUD_ALLOW_STARTER_PLANS` and `UPCLOUD_ALLOW_PREMIUM_PLANS` environment variables. All plan families are now discovered by default. Use NodePool requirements with instance type labels to select specific families.
+- Label separation: Kubernetes-internal labels (topology, instance-type, capacity-type, created-at) are no longer sent to the UpCloud server. Only user-defined labels from `nodeClass.Spec.Labels` plus managed markers (`managed_by`, `capu_*`) reach the server.
+- User labels with slashes and dots (e.g. `node.kubernetes.io/test`) are now passed through to the UpCloud server.
+
 ## [0.9.6] - 2026-07-11
 
 ### Added

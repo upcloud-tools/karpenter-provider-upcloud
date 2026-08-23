@@ -1,5 +1,23 @@
 # Helm chart changelog
 
+## [1.1.0] - 2026-08-23
+
+### Changed
+- **Breaking**: `UpCloudNodeClass` storage configuration refactored to nested `storage` struct:
+  - `storageGB` → `storage.size`
+  - `storageTier` → `storage.tier`
+- `serverGroupUUID` replaces `antiAffinity` boolean in `UpCloudNodeClass`
+- Updated `NOTES.txt` with current `v1alpha2` API references and guidance for new options
+- Bump app version to `v1.0.0` (Beta)
+
+### Added
+- Optional `UpCloudNodeClass` creation via `nodeClass.enabled` (default `false`)
+- Optional `NodePool` creation via `nodePool.enabled` (default `false`)
+- `nodeClass.zone` validation. Required when `nodeClass.enabled=true`
+- `nodeclass-nodepool_test.yaml` with 8 unit tests covering enabled/disabled, custom values, labels, and serverGroupUUID omission
+- `storage.encrypted` (boolean, optional)
+- `serverGroupUUID` field in `UpCloudNodeClass` for anti-affinity placement via server groups
+
 ## [1.0.2] - 2026-08-22
 
 ### Added
