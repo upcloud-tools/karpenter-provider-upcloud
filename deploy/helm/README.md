@@ -20,20 +20,11 @@ autoscaling on UpCloud infrastructure.
 
 ## Installing
 
-The chart is published to the UpCloud Tools OCI registry. Install it into a dedicated `karpenter` namespace,
-supplying your UpCloud API token and the target cluster's UUID:
+The chart is published to the UpCloud Tools OCI registry. Install (or upgrade) it, supplying your UpCloud API token and the
+target cluster's UUID:
 
 ```sh
-helm install karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
-  --namespace kube-system \
-  --set config.clusterUUID=<UPCLOUD_CLUSTER_UUID> \
-  --set config.auth.token=<UPCLOUD_API_TOKEN>
-```
-
-To upgrade later:
-
-```sh
-helm upgrade karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
+helm upgrade --install karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
   --namespace kube-system \
   --set config.clusterUUID=<UPCLOUD_CLUSTER_UUID> \
   --set config.auth.token=<UPCLOUD_API_TOKEN>
@@ -118,7 +109,7 @@ nodePool:
 ```
 
 ```sh
-helm install karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
+helm upgrade --install karpenter-upcloud oci://ghcr.io/upcloud-tools/charts/karpenter-upcloud \
   --namespace kube-system -f values.yaml
 ```
 
