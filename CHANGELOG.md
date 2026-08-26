@@ -6,6 +6,10 @@ The project is still in **Beta**, so expect breaking changes in future releases.
 
 ## [1.0.2] - 2026-08-26
 
+### Added
+- E2E test for bundled-storage plans validates that STARTER/PREMIUM plans work correctly with `Storage: nil`.
+- Comprehensive logging across all e2e tests for better observability during test runs.
+
 ### Fixed
 - NodeClass storage is now truly optional. The provider no longer invents defaults (20GB/standard) when storage is unset, allowing plans with bundled storage (STARTER, PREMIUM, etc.) to work without custom storage configuration.
 - Removed unused `karpenter.sh/created-at` label that contained colons (RFC3339 format like `2026-08-26T15:56:26Z`), causing Kubernetes to reject NodeClaim creation with an error.
@@ -15,6 +19,7 @@ The project is still in **Beta**, so expect breaking changes in future releases.
 - Instance provider no longer substitutes default storage size/tier/encrypted values. Only explicitly configured fields are sent to the UpCloud API.
 - CloudProvider now consults the cached plan metadata to detect bundled-storage plans and strip incompatible storage overrides before passing to the instance provider.
 - InstanceTypes provider now caches raw UpCloud plans alongside instance types, exposing a `Get(name)` accessor for plan metadata lookups.
+- Updated Makefile to run all e2e tests by default (`E2E_TEST ?= .`), previously only ran `TestLiveCloudProviderCreate`.
 
 ## [1.0.1] - 2026-08-23
 
