@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The project is still in **Beta**, so expect breaking changes in future releases.
 
+## [1.0.2] - 2026-08-26
+
+### Fixed
+- NodeClass storage is now truly optional. The provider no longer invents defaults (20GB/standard) when storage is unset, allowing plans with bundled storage (STARTER, PREMIUM, etc.) to work without custom storage configuration.
+- Removed unused `karpenter.sh/created-at` label that contained colons (RFC3339 format like `2026-08-26T15:56:26Z`), causing Kubernetes to reject NodeClaim creation with an error.
+- Plan-aware storage handling: when the selected plan has bundled storage (`StorageSize > 0`), the provider strips `size` and `tier` from the storage spec and logs a warning, letting UpCloud use the plan's bundled disk. The `encrypted` field is preserved and supported on all plans.
+
+### Changed
+- Instance provider no longer substitutes default storage size/tier/encrypted values. Only explicitly configured fields are sent to the UpCloud API.
+- CloudProvider now consults the cached plan metadata to detect bundled-storage plans and strip incompatible storage overrides before passing to the instance provider.
+- InstanceTypes provider now caches raw UpCloud plans alongside instance types, exposing a `Get(name)` accessor for plan metadata lookups.
+
+## [1.0.1] - 2026-08-23
+
+### Added
+- Sigstore asset for chart signing verification
+
 ## [1.0.0] - 2026-08-23
 
 ### Added
