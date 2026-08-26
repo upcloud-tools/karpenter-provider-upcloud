@@ -42,6 +42,8 @@ jobs:
     needs: detect
     if: needs.detect.outputs.skip == 'false' && needs.detect.outputs.app_version_bumped == 'false' && !inputs['skip-e2e']
     uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      run_ttl: false
     secrets: inherit
 
   release-helm:

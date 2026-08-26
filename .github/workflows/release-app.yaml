@@ -52,6 +52,7 @@ jobs:
     if: needs.detect.outputs.skip == 'false' && !inputs['skip-e2e']
     uses: ./.github/workflows/_reusable-e2e.yaml
     with:
+      run_ttl: false
       image_tag: ${{ github.sha }}
     secrets: inherit
 

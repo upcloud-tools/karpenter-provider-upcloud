@@ -24,16 +24,9 @@ permissions:
   packages: read
 
 jobs:
-  provisioning:
+  e2e:
     uses: ./.github/workflows/_reusable-e2e.yaml
     with:
-      image_tag: ${{ inputs.image_tag }}
-    secrets: inherit
-
-  nodeclaimttl:
-    if: ${{ github.event.inputs.nodeclaimttl-tests == 'yes' }}
-    uses: ./.github/workflows/_reusable-e2e.yaml
-    with:
-      e2e_test: TestLiveNodeClaimTTL
+      run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
       image_tag: ${{ inputs.image_tag }}
     secrets: inherit

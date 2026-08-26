@@ -38,7 +38,7 @@ import (
 )
 
 const defaultTemplateUUID    = "01000000-0000-4000-8000-000160150100"
-const defaultCloudnativePlan = "CLOUDNATIVE-2xCPU-4GB"
+const defaultCloudnativePlan = "CLOUDNATIVE-1xCPU-4GB"
 
 // e2eTestEnv holds shared cluster clients and the cloud provider for e2e tests.
 type e2eTestEnv struct {

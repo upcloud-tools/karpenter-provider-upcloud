@@ -1,10 +1,10 @@
 on:
   workflow_call:
     inputs:
-      e2e_test:
+      run_ttl:
         required: false
-        type: string
-        default: TestLiveCloudProviderCreate
+        type: boolean
+        default: true
       image_tag:
         required: false
         type: string
@@ -34,7 +34,7 @@ jobs:
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
         run: make deploy-test
 
-  e2e:
+  e2e-cloudnative:
     needs: deploy
     runs-on: ubuntu-24.04
     strategy:
@@ -42,7 +42,7 @@ jobs:
       matrix:
         include:
           - capacityType: on-demand
-            plan: CLOUDNATIVE-2xCPU-4GB
+            plan: CLOUDNATIVE-1xCPU-4GB
           - capacityType: spot
             plan: GPU-SPOT-8xCPU-64GB-1xL4
     steps:
@@ -59,4 +59,43 @@ jobs:
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-        run: make test-e2e E2E_TEST="${{ inputs.e2e_test }}" E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
+        run: make test-e2e E2E_TEST="TestLiveCloudProviderCreate" E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
+
+  e2e-bundled-storage:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure kubeconfig
+        run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Live e2e (bundled storage)
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+        run: make test-e2e E2E_TEST="TestLiveCloudProviderCreateBundledStorage" E2E_PLAN="STARTER-1xCPU-1GB" E2E_CAPACITY_TYPE="on-demand"
+
+  e2e-ttl:
+    needs: deploy
+    if: ${{ inputs.run_ttl }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure kubeconfig
+        run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Live e2e (TTL)
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+          UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
+        run: make test-e2e E2E_TEST="TestLiveNodeClaimTTL" E2E_PLAN="CLOUDNATIVE-1xCPU-4GB" E2E_CAPACITY_TYPE="on-demand"
