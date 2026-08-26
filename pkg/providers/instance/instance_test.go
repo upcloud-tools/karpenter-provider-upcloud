@@ -25,7 +25,7 @@ func (c *captureServer) CreateServer(_ context.Context, r *request.CreateServerR
 }
 
 // TestCreateSetsManagedLabelAndStorage verifies that the managed label is added, caller labels are forwarded,
-// and the default storage tier (standard) and size (20 GB) are applied.
+// and explicitly set storage tier and size are forwarded to the CreateServer request.
 func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 	srv := &captureServer{}
 	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
@@ -82,10 +82,117 @@ func TestCreateSetsManagedLabelAndStorage(t *testing.T) {
 		t.Errorf("expected one storage device, got %d", len(srv.gotReq.StorageDevices))
 	}
 	if srv.gotReq.StorageDevices[0].Tier != string(upcloud.StorageTierStandard) {
-		t.Errorf("expected standard storage tier default, got %q", srv.gotReq.StorageDevices[0].Tier)
+		t.Errorf("expected standard storage tier, got %q", srv.gotReq.StorageDevices[0].Tier)
 	}
 	if srv.gotReq.StorageDevices[0].Size != 20 {
-		t.Errorf("expected default 20GB disk, got %d", srv.gotReq.StorageDevices[0].Size)
+		t.Errorf("expected 20GB disk, got %d", srv.gotReq.StorageDevices[0].Size)
+	}
+}
+
+// TestCreateWithNilStorage verifies that when storage is nil, no size/tier/encrypted are set on the device
+// (letting UpCloud use plan-bundled storage for STARTER/PREMIUM plans).
+func TestCreateWithNilStorage(t *testing.T) {
+	srv := &captureServer{}
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+
+	_, err := p.Create(context.Background(), "karpenter-abc", "STARTER-2xCPU-8GB", "de-fra1", "#cloud-config", "", nil, nil)
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if srv.gotReq == nil {
+		t.Fatal("CreateServer was not called")
+	}
+	if len(srv.gotReq.StorageDevices) != 1 {
+		t.Errorf("expected one storage device, got %d", len(srv.gotReq.StorageDevices))
+	}
+	dev := srv.gotReq.StorageDevices[0]
+	if dev.Tier != "" {
+		t.Errorf("expected no tier when storage is nil, got %q", dev.Tier)
+	}
+	if dev.Size != 0 {
+		t.Errorf("expected no size when storage is nil, got %d", dev.Size)
+	}
+	if dev.Action != "clone" {
+		t.Errorf("expected clone action, got %q", dev.Action)
+	}
+	if dev.Storage != "template-uuid" {
+		t.Errorf("expected template UUID, got %q", dev.Storage)
+	}
+}
+
+// TestCreateWithPartialStorage verifies that only explicitly set storage fields are forwarded.
+func TestCreateWithPartialStorage(t *testing.T) {
+	srv := &captureServer{}
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+
+	// Only tier set
+	_, err := p.Create(context.Background(), "karpenter-abc", "CLOUDNATIVE-2xCPU-4GB", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Tier: upcloud.StorageTierMaxIOPS})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	dev := srv.gotReq.StorageDevices[0]
+	if dev.Tier != string(upcloud.StorageTierMaxIOPS) {
+		t.Errorf("expected maxiops tier, got %q", dev.Tier)
+	}
+	if dev.Size != 0 {
+		t.Errorf("expected no size when not set, got %d", dev.Size)
+	}
+
+	// Only size set
+	srv2 := &captureServer{}
+	p2 := NewProvider(srv2, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+	_, err = p2.Create(context.Background(), "karpenter-abc", "CLOUDNATIVE-2xCPU-4GB", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Size: 50})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	dev2 := srv2.gotReq.StorageDevices[0]
+	if dev2.Tier != "" {
+		t.Errorf("expected no tier when not set, got %q", dev2.Tier)
+	}
+	if dev2.Size != 50 {
+		t.Errorf("expected 50GB size, got %d", dev2.Size)
+	}
+}
+
+// TestCreateWithEncryptedStorage verifies that encrypted is only set when explicitly configured.
+func TestCreateWithEncryptedStorage(t *testing.T) {
+	srv := &captureServer{}
+	p := NewProvider(srv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+
+	// Encrypted explicitly true
+	encrypted := true
+	_, err := p.Create(context.Background(), "karpenter-abc", "CLOUDNATIVE-2xCPU-4GB", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Tier: upcloud.StorageTierMaxIOPS, Encrypted: &encrypted})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	dev := srv.gotReq.StorageDevices[0]
+	if dev.Encrypted != upcloud.True {
+		t.Errorf("expected encrypted=true when explicitly set, got %v", dev.Encrypted)
+	}
+
+	// Encrypted explicitly false
+	srv2 := &captureServer{}
+	p2 := NewProvider(srv2, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+	notEncrypted := false
+	_, err = p2.Create(context.Background(), "karpenter-abc", "CLOUDNATIVE-2xCPU-4GB", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Tier: upcloud.StorageTierMaxIOPS, Encrypted: &notEncrypted})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	dev2 := srv2.gotReq.StorageDevices[0]
+	if dev2.Encrypted != upcloud.False {
+		t.Errorf("expected encrypted=false when explicitly set to false, got %v", dev2.Encrypted)
+	}
+
+	// Encrypted not set
+	srv3 := &captureServer{}
+	p3 := NewProvider(srv3, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+	_, err = p3.Create(context.Background(), "karpenter-abc", "CLOUDNATIVE-2xCPU-4GB", "de-fra1", "#cloud-config", "", nil, &v1alpha2.StorageSpec{Tier: upcloud.StorageTierMaxIOPS})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	dev3 := srv3.gotReq.StorageDevices[0]
+	if dev3.Encrypted != 0 {
+		t.Errorf("expected encrypted not set (0) when nil, got %v", dev3.Encrypted)
 	}
 }
 

@@ -37,14 +37,19 @@ type UpCloudNodeClassSpec struct {
 }
 
 // StorageSpec configures the node's root disk.
+// For plans with bundled storage (STARTER, PREMIUM, etc.), size and tier are ignored (the plan's
+// bundled disk is used). The encrypted field is supported on all plans.
+// For flexible-storage plans (CLOUDNATIVE, GPU), configure size and tier as needed.
 type StorageSpec struct {
-	// Size is the disk size in gigabytes. Defaults to 20 when unset.
+	// Size is the disk size in gigabytes. Only used for flexible-storage plans (CLOUDNATIVE, GPU).
+	// Ignored for plans with bundled storage.
 	// +optional
 	Size int `json:"size,omitempty"`
-	// Tier is the storage tier: maxiops, standard, or hdd. Defaults to standard.
+	// Tier is the storage tier: maxiops, standard, or hdd. Only used for flexible-storage plans.
+	// Ignored for plans with bundled storage.
 	// +optional
 	Tier upcloud.StorageTier `json:"tier,omitempty"`
-	// Encrypted enables encryption at rest. Defaults to false.
+	// Encrypted enables encryption at rest. Supported on all plans.
 	// +optional
 	Encrypted *bool `json:"encrypted,omitempty"`
 }

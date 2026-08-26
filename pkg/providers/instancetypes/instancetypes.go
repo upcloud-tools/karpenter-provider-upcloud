@@ -28,6 +28,7 @@ type Provider struct {
 	zone                string
 	mu                  sync.RWMutex
 	instanceTypesByName map[string]*cloudprovider.InstanceType
+	plansByName         map[string]upcloud.Plan
 	prices              map[string]float64
 	lastFetch           time.Time
 	cacheTTL            time.Duration
@@ -39,6 +40,7 @@ func NewProvider(svc service.Cloud, zone string) *Provider {
 		svc:                 svc,
 		zone:                zone,
 		instanceTypesByName: make(map[string]*cloudprovider.InstanceType),
+		plansByName:         make(map[string]upcloud.Plan),
 		prices:              make(map[string]float64),
 		cacheTTL:            30 * time.Minute,
 	}
@@ -49,6 +51,14 @@ func (p *Provider) List() []*cloudprovider.InstanceType {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return lo.Values(p.instanceTypesByName)
+}
+
+// Get returns the cached UpCloud plan by name. Returns the plan and true if found, or a zero-value plan and false otherwise.
+func (p *Provider) Get(name string) (upcloud.Plan, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	plan, ok := p.plansByName[name]
+	return plan, ok
 }
 
 // Refresh fetches all plans and prices from the UpCloud API and caches each as a separate InstanceType.
@@ -77,15 +87,18 @@ func (p *Provider) Refresh(ctx context.Context) error {
 	// Each plan (on-demand and spot) is surfaced as its own instance type. Spot plans are distinguished from on-demand by their
 	// capacity-type offering, which Karpenter selects via the karpenter.sh/capacity-type requirement.
 	built := make(map[string]*cloudprovider.InstanceType, len(plans.Plans))
+	rawPlans := make(map[string]upcloud.Plan, len(plans.Plans))
 	for _, plan := range plans.Plans {
 		it := p.buildInstanceTypeWithPrices(plan, prices)
 		if it != nil {
 			built[plan.Name] = it
 		}
+		rawPlans[plan.Name] = plan
 	}
 
 	p.mu.Lock()
 	p.instanceTypesByName = built
+	p.plansByName = rawPlans
 	p.mu.Unlock()
 
 	log.FromContext(ctx).Info("refreshed instance types", "count", len(built))

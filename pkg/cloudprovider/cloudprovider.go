@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 
@@ -130,7 +131,18 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 		return nil, fmt.Errorf("generating userdata: %w", err)
 	}
 
-	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, nodeClass.Spec.ServerGroupUUID, serverLabels, nodeClass.Spec.Storage)
+	storage := nodeClass.Spec.Storage
+	if planInfo, ok := p.instanceTypeProvider.Get(plan); ok && planInfo.StorageSize > 0 {
+		if storage != nil && (storage.Size > 0 || storage.Tier != "") {
+			log.FromContext(ctx).Info("storage.size/tier ignored for plan (storage is included with plan)",
+				"plan", plan, "bundledStorageSize", planInfo.StorageSize)
+			storage = &v1alpha2.StorageSpec{
+				Encrypted: storage.Encrypted,
+			}
+		}
+	}
+
+	server, err := p.instanceProvider.Create(ctx, serverName, plan, p.zone, userData, nodeClass.Spec.ServerGroupUUID, serverLabels, storage)
 	if err != nil {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("creating server: %w", err))
 	}

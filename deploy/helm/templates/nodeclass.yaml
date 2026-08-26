@@ -10,10 +10,18 @@ spec:
   zone: {{ required "nodeClass.zone is required when nodeClass.enabled=true" .zone | quote }}
   plan: {{ .plan | quote }}
   templateUUID: {{ $.Values.config.templateUUID | quote }}
+  {{- if .storage }}
   storage:
+    {{- if .storage.size }}
     size: {{ .storage.size }}
+    {{- end }}
+    {{- if .storage.tier }}
     tier: {{ .storage.tier | quote }}
+    {{- end }}
+    {{- if hasKey .storage "encrypted" }}
     encrypted: {{ .storage.encrypted }}
+    {{- end }}
+  {{- end }}
   {{- if .serverGroupUUID }}
   serverGroupUUID: {{ .serverGroupUUID | quote }}
   {{- end }}

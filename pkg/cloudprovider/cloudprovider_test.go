@@ -546,3 +546,190 @@ func TestDelete(t *testing.T) {
 		t.Errorf("expected server removed after delete, got %d", len(list))
 	}
 }
+
+// TestStorageStrippedForBundledStoragePlan verifies that when a plan has bundled storage (StorageSize > 0),
+// the cloudprovider strips size/tier from the storage spec and lets UpCloud use the plan's bundled storage.
+func TestStorageStrippedForBundledStoragePlan(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add clientgo scheme: %v", err)
+	}
+	if err := apisv1alpha2.AddToScheme(scheme); err != nil {
+		t.Fatalf("add upcloud scheme: %v", err)
+	}
+
+	// NodeClass with explicit storage config (size=50, tier=maxiops)
+	nodeClass := &apisv1alpha2.UpCloudNodeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+		Spec: apisv1alpha2.UpCloudNodeClassSpec{
+			Zone: "de-fra1",
+			Plan: "STARTER-2xCPU-8GB", // This plan has bundled storage
+			Storage: &apisv1alpha2.StorageSpec{
+				Size: 50,
+				Tier: upcloud.StorageTierMaxIOPS,
+			},
+		},
+	}
+	caCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-root-ca.crt", Namespace: metav1.NamespaceSystem},
+		Data:       map[string]string{"ca.crt": "dummy-ca-cert"},
+	}
+
+	kubeClient := crfake.NewClientBuilder().WithScheme(scheme).WithObjects(nodeClass, caCM).Build()
+
+	csClient := fake.NewSimpleClientset()
+	csClient.PrependReactor("create", "certificatesigningrequests", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		csr := action.(k8stesting.CreateAction).GetObject().(*certificatesv1.CertificateSigningRequest)
+		csr.Status.Certificate = []byte("fake-signed-cert")
+		if err := csClient.Tracker().Add(csr); err != nil {
+			return true, nil, err
+		}
+		return true, csr, nil
+	})
+
+	fakeSrv := &fakeServer{servers: map[string]*upcloud.ServerDetails{}}
+	instanceProvider := instance.NewProvider(fakeSrv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+	userDataProvider := userdata.NewProvider()
+
+	// STARTER plan has StorageSize > 0 (bundled storage)
+	itProvider := instancetypes.NewProvider(
+		&fakeCloud{
+			plans: &upcloud.Plans{Plans: []upcloud.Plan{
+				{Name: "STARTER-2xCPU-8GB", CoreNumber: 2, MemoryAmount: 8192, StorageSize: 50},
+				{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0},
+			}},
+			prices: &upcloud.PricesByZone{"de-fra1": map[string]upcloud.Price{
+				"STARTER-2xCPU-8GB":     {Price: 0.05},
+				"CLOUDNATIVE-2xCPU-4GB": {Price: 0.04},
+			}},
+		},
+		"de-fra1",
+	)
+	if err := itProvider.Refresh(context.Background()); err != nil {
+		t.Fatalf("refresh instance types: %v", err)
+	}
+
+	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute)
+
+	nodeClaim := &karpv1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-nc"},
+		Spec: karpv1.NodeClaimSpec{
+			NodeClassRef: &karpv1.NodeClassReference{Name: "default"},
+		},
+	}
+
+	_, err := cp.Create(context.Background(), nodeClaim)
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+
+	// Verify the storage device has no size/tier (stripped for bundled-storage plan)
+	if fakeSrv.lastReq == nil {
+		t.Fatal("CreateServer was not called")
+	}
+	if len(fakeSrv.lastReq.StorageDevices) != 1 {
+		t.Fatalf("expected one storage device, got %d", len(fakeSrv.lastReq.StorageDevices))
+	}
+	dev := fakeSrv.lastReq.StorageDevices[0]
+	if dev.Size != 0 {
+		t.Errorf("expected size stripped for bundled-storage plan, got %d", dev.Size)
+	}
+	if dev.Tier != "" {
+		t.Errorf("expected tier stripped for bundled-storage plan, got %q", dev.Tier)
+	}
+	if dev.Action != "clone" {
+		t.Errorf("expected clone action, got %q", dev.Action)
+	}
+}
+
+// TestStorageForwardedForFlexiblePlan verifies that when a plan has no bundled storage (StorageSize == 0),
+// the cloudprovider forwards the storage spec as-is.
+func TestStorageForwardedForFlexiblePlan(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add clientgo scheme: %v", err)
+	}
+	if err := apisv1alpha2.AddToScheme(scheme); err != nil {
+		t.Fatalf("add upcloud scheme: %v", err)
+	}
+
+	// NodeClass with explicit storage config
+	nodeClass := &apisv1alpha2.UpCloudNodeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+		Spec: apisv1alpha2.UpCloudNodeClassSpec{
+			Zone: "de-fra1",
+			Plan: "CLOUDNATIVE-2xCPU-4GB", // This plan has NO bundled storage
+			Storage: &apisv1alpha2.StorageSpec{
+				Size: 50,
+				Tier: upcloud.StorageTierMaxIOPS,
+			},
+		},
+	}
+	caCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-root-ca.crt", Namespace: metav1.NamespaceSystem},
+		Data:       map[string]string{"ca.crt": "dummy-ca-cert"},
+	}
+
+	kubeClient := crfake.NewClientBuilder().WithScheme(scheme).WithObjects(nodeClass, caCM).Build()
+
+	csClient := fake.NewSimpleClientset()
+	csClient.PrependReactor("create", "certificatesigningrequests", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		csr := action.(k8stesting.CreateAction).GetObject().(*certificatesv1.CertificateSigningRequest)
+		csr.Status.Certificate = []byte("fake-signed-cert")
+		if err := csClient.Tracker().Add(csr); err != nil {
+			return true, nil, err
+		}
+		return true, csr, nil
+	})
+
+	fakeSrv := &fakeServer{servers: map[string]*upcloud.ServerDetails{}}
+	instanceProvider := instance.NewProvider(fakeSrv, "template-uuid", "network-uuid", "cluster-uuid", "cluster-name")
+	userDataProvider := userdata.NewProvider()
+
+	// CLOUDNATIVE plan has StorageSize == 0 (flexible storage)
+	itProvider := instancetypes.NewProvider(
+		&fakeCloud{
+			plans: &upcloud.Plans{Plans: []upcloud.Plan{
+				{Name: "STARTER-2xCPU-8GB", CoreNumber: 2, MemoryAmount: 8192, StorageSize: 50},
+				{Name: "CLOUDNATIVE-2xCPU-4GB", CoreNumber: 2, MemoryAmount: 4096, StorageSize: 0},
+			}},
+			prices: &upcloud.PricesByZone{"de-fra1": map[string]upcloud.Price{
+				"STARTER-2xCPU-8GB":     {Price: 0.05},
+				"CLOUDNATIVE-2xCPU-4GB": {Price: 0.04},
+			}},
+		},
+		"de-fra1",
+	)
+	if err := itProvider.Refresh(context.Background()); err != nil {
+		t.Fatalf("refresh instance types: %v", err)
+	}
+
+	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute)
+
+	nodeClaim := &karpv1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-nc"},
+		Spec: karpv1.NodeClaimSpec{
+			NodeClassRef: &karpv1.NodeClassReference{Name: "default"},
+		},
+	}
+
+	_, err := cp.Create(context.Background(), nodeClaim)
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+
+	// Verify the storage device has size/tier forwarded (flexible plan)
+	if fakeSrv.lastReq == nil {
+		t.Fatal("CreateServer was not called")
+	}
+	if len(fakeSrv.lastReq.StorageDevices) != 1 {
+		t.Fatalf("expected one storage device, got %d", len(fakeSrv.lastReq.StorageDevices))
+	}
+	dev := fakeSrv.lastReq.StorageDevices[0]
+	if dev.Size != 50 {
+		t.Errorf("expected size=50 for flexible plan, got %d", dev.Size)
+	}
+	if dev.Tier != string(upcloud.StorageTierMaxIOPS) {
+		t.Errorf("expected tier=maxiops for flexible plan, got %q", dev.Tier)
+	}
+}

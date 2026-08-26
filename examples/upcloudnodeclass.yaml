@@ -6,9 +6,11 @@ spec:
   zone: de-fra1
   plan: CLOUDNATIVE-2xCPU-4GB
   # Optional: root disk configuration.
+  # - size and tier: only for flexible-storage plans (CLOUDNATIVE, GPU). Ignored for plans with bundled storage.
+  # - encrypted: supported on all plans (including STARTER, PREMIUM, etc.).
   storage:
-    size: 20          # default 20 (GB)
-    tier: standard    # standard|maxiops|hdd, default standard
-    encrypted: false  # optional, enables encryption at rest, default false
-    # Create a server group with: upctl server-group create --title "karpenter-nodes" --anti-affinity-policy strict
-    serverGroupUUID: "" # optional, server group UUID for anti-affinity placement.
+    size: 50          # minimum 10 GB, only for CLOUDNATIVE/GPU plans
+    tier: maxiops     # standard|maxiops|hdd, only for CLOUDNATIVE/GPU plans
+    encrypted: false  # optional, enables encryption at rest (all plans)
+  # Create a server group with: upctl server-group create --title "karpenter-nodes" --anti-affinity-policy strict
+  serverGroupUUID: "" # optional, server group UUID for anti-affinity placement.

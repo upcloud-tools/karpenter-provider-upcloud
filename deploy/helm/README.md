@@ -53,9 +53,10 @@ The following table lists the most commonly overridden values. All values are al
 | `nodeClass.zone` | string | `""` | **Required** when `nodeClass.enabled=true`. UpCloud zone for the node class. |
 | `nodeClass.plan` | string | `CLOUDNATIVE-2xCPU-4GB` | Default server plan. |
 | `nodeClass.serverGroupUUID` | string | `""` | Server group UUID for anti-affinity placement. |
-| `nodeClass.storage.size` | int | `20` | Root disk size in GB (minimum 10). |
-| `nodeClass.storage.tier` | string | `standard` | Root disk tier (`standard`, `maxiops`, `hdd`). |
-| `nodeClass.storage.encrypted` | bool | `false` | Encrypt the root disk at rest. |
+| `nodeClass.storage` | object/null | `null` | Root disk configuration. `size` and `tier` only apply to flexible-storage plans (CLOUDNATIVE, GPU); ignored for plans with bundled storage. |
+| `nodeClass.storage.size` | int | - | Root disk size in GB (minimum 10). Only for flexible-storage plans. |
+| `nodeClass.storage.tier` | string | - | Root disk tier (`standard`, `maxiops`, `hdd`). Only for flexible-storage plans. |
+| `nodeClass.storage.encrypted` | bool | - | Encrypt the root disk at rest. Supported on all plans. |
 | `nodePool.enabled` | bool | `false` | Create a default `NodePool`. |
 | `nodePool.name` | string | `default` | Name of the `NodePool`. |
 | `nodePool.nodeClassName` | string | `default` | Name of the `UpCloudNodeClass` to reference. |

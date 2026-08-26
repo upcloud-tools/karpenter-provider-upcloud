@@ -10,9 +10,6 @@ const (
 	// The full format is "upcloud:////<server-uuid>".
 	ProviderIDPrefix = "upcloud:////"
 
-	// DefaultStorageGB is the root disk size used when UpCloudNodeClass.Spec.Storage.Size is unset.
-	DefaultStorageGB = 20
-
 	// ResourceNvidiaGPU is the standard Kubernetes GPU resource name.
 	// Advertising it on GPU instance types lets Karpenter schedule pods that request nvidia.com/gpu.
 	ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"

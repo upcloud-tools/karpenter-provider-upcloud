@@ -38,15 +38,8 @@ tests:
       - equal:
           path: spec.templateUUID
           value: "01000000-0000-4000-8000-000160150100"
-      - equal:
-          path: spec.storage.size
-          value: 20
-      - equal:
-          path: spec.storage.tier
-          value: standard
-      - equal:
-          path: spec.storage.encrypted
-          value: false
+      - isNull:
+          path: spec.storage
 
   - it: should generate nodepool when enabled
     set:
@@ -132,6 +125,44 @@ tests:
     asserts:
       - isNull:
           path: spec.serverGroupUUID
+
+  - it: should allow partial storage configuration (tier only)
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        zone: de-fra1
+        storage:
+          tier: maxiops
+    template: nodeclass.yaml
+    asserts:
+      - equal:
+          path: spec.storage.tier
+          value: maxiops
+      - isNull:
+          path: spec.storage.size
+      - isNull:
+          path: spec.storage.encrypted
+
+  - it: should allow partial storage configuration (size only)
+    set:
+      config:
+        clusterUUID: 0d000000-0000-4000-8000-000160150100
+      nodeClass:
+        enabled: true
+        zone: de-fra1
+        storage:
+          size: 100
+    template: nodeclass.yaml
+    asserts:
+      - equal:
+          path: spec.storage.size
+          value: 100
+      - isNull:
+          path: spec.storage.tier
+      - isNull:
+          path: spec.storage.encrypted
 
   - it: should allow custom nodepool instance types
     set:

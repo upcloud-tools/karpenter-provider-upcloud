@@ -49,10 +49,15 @@ nodeClass:  # @schema additionalProperties: false
   zone: ""  # @schema type: string
   plan: CLOUDNATIVE-2xCPU-4GB  # @schema type: string
   serverGroupUUID: ""  # @schema type: string
-  storage:  # @schema additionalProperties: false
-    size: 20  # @schema type: integer, minimum: 10
-    tier: standard  # @schema enum: ["standard", "maxiops", "hdd"]
-    encrypted: false
+  # Storage configuration.
+  # - size and tier: only used for flexible-storage plans (CLOUDNATIVE, GPU). Ignored for plans with bundled storage.
+  # - encrypted: supported on all plans.
+  storage: null  # @schema type: [object, null], additionalProperties: false
+  # Example for CLOUDNATIVE/GPU plans:
+  # storage:
+  #   size: 50  # @schema type: integer, minimum: 10
+  #   tier: maxiops  # @schema enum: ["standard", "maxiops", "hdd"]
+  #   encrypted: false
 
 # Optional: create a default NodePool.
 nodePool:  # @schema additionalProperties: false

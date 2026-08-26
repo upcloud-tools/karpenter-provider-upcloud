@@ -46,12 +46,19 @@
         "plan": { "type": "string", "default": "CLOUDNATIVE-2xCPU-4GB" },
         "serverGroupUUID": { "type": "string", "default": "" },
         "storage": {
-          "type": "object",
-          "properties": {
-            "size": { "type": "integer", "default": 20, "minimum": 10 },
-            "tier": { "type": "string", "enum": ["standard", "maxiops", "hdd"], "default": "standard" },
-            "encrypted": { "type": "boolean", "default": false }
-          }
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "properties": {
+                "size": { "type": "integer", "minimum": 10 },
+                "tier": { "type": "string", "enum": ["standard", "maxiops", "hdd"] },
+                "encrypted": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "default": null
         }
       }
     },

@@ -49,36 +49,31 @@ func (p *Provider) Create(ctx context.Context, hostname, plan, zone, userData, s
 		*labelSlice = append(*labelSlice, upcloud.Label{Key: k, Value: v})
 	}
 
-	storageSizeGB := 20
-	storageTier := string(upcloud.StorageTierStandard)
-	storageEncrypted := false
+	device := request.CreateServerStorageDevice{
+		Action:  "clone",
+		Storage: p.templateUUID,
+		Title:   hostname + "-root",
+	}
 	if storage != nil {
 		if storage.Size > 0 {
-			storageSizeGB = storage.Size
+			device.Size = storage.Size
 		}
 		if storage.Tier != "" {
-			storageTier = string(storage.Tier)
+			device.Tier = string(storage.Tier)
 		}
-		storageEncrypted = storage.Encrypted != nil && *storage.Encrypted
+		if storage.Encrypted != nil {
+			device.Encrypted = upcloud.FromBool(*storage.Encrypted)
+		}
 	}
 
 	createReq := &request.CreateServerRequest{
-		Labels:      labelSlice,
-		Zone:        zone,
-		Hostname:    hostname,
-		Title:       hostname,
-		Plan:        plan,
-		ServerGroup: serverGroupUUID,
-		StorageDevices: request.CreateServerStorageDeviceSlice{
-			{
-				Action:    "clone",
-				Storage:   p.templateUUID,
-				Title:     hostname + "-root",
-				Tier:      storageTier,
-				Size:      storageSizeGB,
-				Encrypted: upcloud.FromBool(storageEncrypted),
-			},
-		},
+		Labels:         labelSlice,
+		Zone:           zone,
+		Hostname:       hostname,
+		Title:          hostname,
+		Plan:           plan,
+		ServerGroup:    serverGroupUUID,
+		StorageDevices: request.CreateServerStorageDeviceSlice{device},
 		Networking: &request.CreateServerNetworking{
 			Interfaces: request.CreateServerInterfaceSlice{
 				{
