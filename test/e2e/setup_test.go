@@ -164,6 +164,7 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	t.Helper()
 
 	nodeclassName := "e2e-ttl-" + env.runID
+	t.Logf("creating NodeClass %s for plan %s (storage=%v)...", nodeclassName, plan, storage != nil)
 	nodeclass := &v1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
 		Spec: v1alpha2.UpCloudNodeClassSpec{
@@ -204,9 +205,13 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 		},
 	}
 
+	t.Logf("calling cloudprovider.Create for plan %s (this may take 1-2 minutes)...", plan)
 	created, err := env.cp.Create(env.ctx, nodeClaim)
 	require.NoError(t, err, "Create")
+	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
+	
 	t.Cleanup(func() {
+		t.Logf("cleaning up server %s...", created.Status.ProviderID)
 		_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
 		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
 			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
@@ -230,13 +235,16 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 			Requirements: nodeClaim.Spec.Requirements,
 		},
 	}
+	t.Logf("creating NodeClaim k8s resource %s...", createNC.Name)
 	require.NoError(t, env.kubeClient.Create(env.ctx, createNC), "creating NodeClaim k8s resource")
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: createNC.Name}, createNC), "re-fetching NodeClaim")
 	createNC.Status = created.Status
 	require.NoError(t, env.kubeClient.Status().Update(env.ctx, createNC), "updating NodeClaim status")
 	t.Logf("provisioned server %s (nc=%s, node=%s)", created.Status.ProviderID, createNC.Name, created.Status.NodeName)
 
+	t.Logf("waiting for node %s to be clean (Ready + no startup taints)...", created.Status.NodeName)
 	env.waitForNodeClean(t, created.Status.NodeName)
+	t.Logf("✓ node %s is clean and ready", created.Status.NodeName)
 
 	return &e2eServer{
 		nodeClaim:     created,

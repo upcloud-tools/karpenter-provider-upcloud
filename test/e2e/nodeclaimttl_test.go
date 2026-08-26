@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
@@ -24,17 +25,23 @@ import (
 func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType())
+	t.Logf("provisioning server for TTL path 3 (decommission) test...")
+	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
+	t.Logf("patching TTL to expire...")
 	env.patchTTLToExpire(t, srv.ncK8sName)
+	t.Logf("tainting node with e2e-test.upcloud.com/no-schedule...")
 	env.taintNode(t, srv.nodeName)
 
+	t.Logf("reconciling TTL controller...")
 	result := env.reconcileTTL(t, srv.ncK8sName)
 	if result.RequeueAfter != 0 {
 		debugNC := &karpv1.NodeClaim{}
 		_ = env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, debugNC)
 		t.Fatalf("expected decommission (requeueAfter=0), got %v; NC exists=%v", result.RequeueAfter, debugNC.Name != "")
 	}
+	t.Logf("✓ TTL controller returned requeueAfter=0 (decommission path)")
 
 	finalNC := &karpv1.NodeClaim{}
 	getErr := env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, finalNC)
@@ -59,7 +66,9 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 			}
 		}
 		assert.True(t, hasTaint, "expected decommissioning taint on node %s", srv.nodeName)
+		t.Logf("✓ node has decommissioning taint")
 	}
+	t.Logf("✓ path 3 decommission test passed")
 }
 
 // TestLiveNodeClaimTTL_Path2_Reuse verifies that a NodeClaim whose TTL has expired on an empty node is kept alive when a pending
@@ -67,8 +76,11 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType())
+	t.Logf("provisioning server for TTL path 2 (reuse) test...")
+	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
+	t.Logf("tainting node with e2e-test.upcloud.com/no-schedule...")
 	env.taintNode(t, srv.nodeName)
 
 	pendingPod := &corev1.Pod{
@@ -87,12 +99,16 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 			}},
 		},
 	}
+	t.Logf("creating pending pod %s with nodeSelector for plan %s...", pendingPod.Name, srv.plan)
 	require.NoError(t, env.kubeClient.Create(env.ctx, pendingPod), "creating pending pod")
 	t.Cleanup(func() {
 		_ = env.kubeClient.Delete(context.WithoutCancel(env.ctx), pendingPod)
 	})
+	t.Logf("waiting for pod to become Unschedulable...")
 	env.waitForUnschedulablePod(t, pendingPod.Name)
+	t.Logf("✓ pod is Unschedulable")
 
+	t.Logf("waiting for node label %s...", corev1.LabelInstanceTypeStable)
 	env.waitForNodeLabel(t, srv.nodeName, corev1.LabelInstanceTypeStable)
 	if env.debug {
 		env.dumpPendingPods(t)
@@ -119,8 +135,10 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 		}
 	}
 
+	t.Logf("patching TTL to expire...")
 	env.patchTTLToExpire(t, srv.ncK8sName)
 
+	t.Logf("reconciling TTL controller...")
 	result := env.reconcileTTL(t, srv.ncK8sName)
 	if result.RequeueAfter == 0 {
 		// Post-reconcile diagnostics (only when UPCLOUD_E2E_DEBUG=1): re-fetch the test pod and node to see what the controller saw.
@@ -143,6 +161,7 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 		}
 		t.Fatalf("expected TTL reset for matching pending pod (requeueAfter>0), got 0")
 	}
+	t.Logf("✓ TTL controller returned requeueAfter=%v (reuse path)", result.RequeueAfter)
 
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
@@ -155,6 +174,7 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 
 	require.Greater(t, 30*time.Second, time.Since(resetTime), "reset timestamp too old: %s", resetAt)
 	t.Logf("TTL reset at %s — path 2 confirmed", resetAt)
+	t.Logf("✓ path 2 reuse test passed")
 }
 
 // TestLiveNodeClaimTTL_Path1_Reset verifies that a NodeClaim whose TTL has expired on a node that still hosts non-DaemonSet
@@ -162,15 +182,22 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType())
+	t.Logf("provisioning server for TTL path 1 (reset) test...")
+	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
+	t.Logf("creating busy pod on node %s...", srv.nodeName)
 	busyPod := env.runPod(t, "e2e-busy-"+env.runID, srv.nodeName)
 	_ = busyPod
+	t.Logf("✓ busy pod is running")
 
+	t.Logf("patching TTL to expire...")
 	env.patchTTLToExpire(t, srv.ncK8sName)
 
+	t.Logf("reconciling TTL controller...")
 	result := env.reconcileTTL(t, srv.ncK8sName)
 	require.NotZero(t, result.RequeueAfter, "expected TTL reset for busy node (requeueAfter>0)")
+	t.Logf("✓ TTL controller returned requeueAfter=%v (reset path)", result.RequeueAfter)
 
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: srv.ncK8sName}, nc), "getting NodeClaim after reset")
@@ -183,4 +210,5 @@ func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 
 	require.Greater(t, 30*time.Second, time.Since(resetTime), "reset timestamp too old: %s", resetAt)
 	t.Logf("TTL reset at %s — path 1 confirmed", resetAt)
+	t.Logf("✓ path 1 reset test passed")
 }

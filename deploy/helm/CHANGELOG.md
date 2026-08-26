@@ -4,11 +4,10 @@
 
 ### Fixed
 - **Breaking**: `nodeClass.storage` now defaults to `null` instead of `{size: 20, tier: standard, encrypted: false}`. Plans with bundled storage (STARTER, PREMIUM, etc.) now work without custom storage configuration. Users of flexible-storage plans (CLOUDNATIVE, GPU) must explicitly set storage if they want custom disk size/tier.
-- Removed unused `karpenter.sh/created-at` label that contained colons (RFC3339 format), causing Kubernetes to reject NodeClaim creation with "Invalid value" errors
 - Plan-aware storage handling: `size` and `tier` are ignored for plans with bundled storage; `encrypted` is supported on all plans
 
 ### Changed
-- `nodeClass.storage` schema now allows `null` or object with optional sub-keys (partial configs like tier-only are valid)
+- `nodeClass.storage` schema now allows `null` or object with optional sub-keys
 - NodeClass template conditionally renders storage block and individual keys only when set
 - Updated documentation to clarify which storage fields apply to which plan types
 
