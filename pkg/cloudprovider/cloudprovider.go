@@ -89,11 +89,10 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	}
 
 	// Node labels: all labels for cloud-init (kubelet --node-labels) and the NodeClaim.
-	// Includes Kubernetes-internal labels (topology, instance-type, arch, os, capacity-type, created-at)
+	// Includes Kubernetes-internal labels (topology, instance-type, arch, os, capacity-type)
 	// merged with user-defined labels from the NodeClass and NodeClaim.
 	nodeLabels := lo.Assign(
 		map[string]string{
-			"karpenter.sh/created-at":                  time.Now().Format(time.RFC3339),
 			"topology.kubernetes.io/region":            p.zone,
 			"topology.kubernetes.io/zone":              p.zone,
 			"failure-domain.beta.kubernetes.io/region": p.zone,
