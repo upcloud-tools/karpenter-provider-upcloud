@@ -19,6 +19,7 @@ env:
 
 jobs:
   deploy:
+    timeout-minutes: 5
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +36,7 @@ jobs:
         run: make deploy-test
 
   e2e-cloudnative:
+    timeout-minutes: 25
     needs: deploy
     runs-on: ubuntu-24.04
     strategy:
@@ -62,6 +64,7 @@ jobs:
         run: make test-e2e E2E_TEST="TestLiveCloudProviderCreate" E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
 
   e2e-bundled-storage:
+    timeout-minutes: 5
     needs: deploy
     runs-on: ubuntu-24.04
     steps:
