@@ -79,14 +79,73 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 	}
 	t.Logf("using bundled-storage plan: %s", plan)
 
-	// Use provisionServer with nil storage to test bundled-storage path
-	srv := env.provisionServer(t, plan, env.envCapacityType(), nil)
-	t.Logf("server provisioned: providerID=%s, nodeName=%s", srv.nodeClaim.Status.ProviderID, srv.nodeName)
+	// Create NodeClass with Storage: nil to test bundled-storage path
+	nodeclassName := "e2e-bundled-" + env.runID
+	t.Logf("creating NodeClass %s with Storage=nil (bundled storage)", nodeclassName)
+	nodeclass := &v1alpha2.UpCloudNodeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
+		Spec: v1alpha2.UpCloudNodeClassSpec{
+			Zone:    env.zone,
+			Plan:    plan,
+			Storage: nil, // Explicitly nil - use plan's bundled storage
+			Labels:  map[string]string{"e2e-run": env.runID},
+		},
+	}
+	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
+		return env.kubeClient.Create(env.ctx, nodeclass)
+	}), "creating nodeclass")
 
-	// Verify the server was created with bundled storage (no explicit size/tier in the request)
-	// We can't directly inspect the CreateServerRequest in e2e, but we can verify the server exists
-	// and has the expected labels. The unit tests verify the storage stripping logic.
-	serverUUID := strings.TrimPrefix(srv.nodeClaim.Status.ProviderID, "upcloud:////")
+	var created *karpv1.NodeClaim
+	t.Cleanup(func() {
+		if created != nil {
+			t.Logf("cleaning up NodeClaim %s", created.Name)
+			_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
+		}
+		env.cleanupServers()
+		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
+			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
+		})
+	})
+
+	nodeClaim := &karpv1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "e2e-bundled-nc-" + env.runID},
+		Spec: karpv1.NodeClaimSpec{
+			NodeClassRef: &karpv1.NodeClassReference{Name: nodeclassName},
+			Requirements: []karpv1.NodeSelectorRequirementWithMinValues{
+				{
+					Key:      corev1.LabelInstanceTypeStable,
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{plan},
+				},
+			},
+		},
+	}
+
+	t.Logf("calling cloudprovider.Create for plan %s (this may take 1-2 minutes)...", plan)
+	createCtx, cancel := context.WithTimeout(env.ctx, 3*time.Minute)
+	defer cancel()
+
+	var err error
+	created, err = env.cp.Create(createCtx, nodeClaim)
+	if err != nil {
+		if strings.Contains(err.Error(), "SERVER_RESOURCES_UNAVAILABLE") {
+			t.Skipf("plan %s has no capacity in zone %s", plan, env.zone)
+		}
+		require.NoError(t, err, "Create for bundled-storage plan %s", plan)
+	}
+	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
+
+	// Wait for the server to reach started state (not waiting for node to appear in cluster)
+	serverUUID := strings.TrimPrefix(created.Status.ProviderID, "upcloud:////")
+	t.Logf("waiting for server %s to start...", serverUUID)
+	waitCtx, waitCancel := context.WithTimeout(env.ctx, 3*time.Minute)
+	defer waitCancel()
+	if err := env.instanceProvider.WaitForStart(waitCtx, serverUUID); err != nil {
+		t.Fatalf("waiting for server %s to start: %v", serverUUID, err)
+	}
+	t.Logf("server %s is now started", serverUUID)
+
+	// Verify the server was created with bundled storage
 	t.Logf("fetching server details to verify labels...")
 	server, err := env.instanceProvider.Get(env.ctx, serverUUID)
 	if assert.NoError(t, err, "getting server details") {
@@ -101,9 +160,9 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 
 	// Verify Get works
 	t.Logf("verifying cloudprovider.Get...")
-	got, err := env.cp.Get(env.ctx, srv.nodeClaim.Status.ProviderID)
+	got, err := env.cp.Get(env.ctx, created.Status.ProviderID)
 	if assert.NoError(t, err, "Get after Create") {
-		assert.Equal(t, srv.nodeClaim.Status.ProviderID, got.Status.ProviderID, "providerID mismatch")
+		assert.Equal(t, created.Status.ProviderID, got.Status.ProviderID, "providerID mismatch")
 	}
 	t.Logf("✓ all assertions passed")
 }

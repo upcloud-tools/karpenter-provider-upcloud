@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/client"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
@@ -160,7 +159,8 @@ func (env *e2eTestEnv) dumpPendingPods(t *testing.T) {
 
 // provisionServer creates a NodeClass, starts a real UpCloud server, creates the NodeClaim k8s resource,
 // and waits for the k8s Node to register. It registers cleanup via t.Cleanup.
-func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) *e2eServer {
+// Pass nil for storage to use plan-bundled storage (STARTER, PREMIUM plans).
+func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string, storage *v1alpha2.StorageSpec) *e2eServer {
 	t.Helper()
 
 	nodeclassName := "e2e-ttl-" + env.runID
@@ -168,13 +168,10 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string) 
 	nodeclass := &v1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
 		Spec: v1alpha2.UpCloudNodeClassSpec{
-			Zone: os.Getenv("UPCLOUD_E2E_ZONE"),
-			Plan: plan,
-			Storage: &v1alpha2.StorageSpec{
-				Size: 20,
-				Tier: upcloud.StorageTierStandard,
-			},
-			Labels: map[string]string{"e2e-run": env.runID},
+			Zone:    os.Getenv("UPCLOUD_E2E_ZONE"),
+			Plan:    plan,
+			Storage: storage,
+			Labels:  map[string]string{"e2e-run": env.runID},
 		},
 	}
 	
