@@ -2,7 +2,7 @@ apiVersion: v2
 name: karpenter-upcloud
 description: Karpenter provider for UpCloud
 type: application
-version: "1.1.2"
+version: "1.2.0"
 appVersion: "v1.0.1"
 kubeVersion: ">=1.31.0"
 keywords:
@@ -24,21 +24,31 @@ annotations:
     - name: Support
       url: https://github.com/upcloud-tools/karpenter-provider-upcloud/issues
   artifacthub.io/crds: |
+    - kind: NodePool
+      version: v1
+      name: nodepools.karpenter.sh
+      displayName: NodePool
+      description: Karpenter's declarative node provisioning API
+    - kind: NodeClaim
+      version: v1
+      name: nodeclaims.karpenter.sh
+      displayName: NodeClaim
+      description: Karpenter's lifecycle API for individual nodes
+    - kind: NodeOverlay
+      version: v1
+      name: nodeoverlays.karpenter.sh
+      displayName: NodeOverlay
+      description: Customize instance type pricing and behavior
+    - kind: CapacityBuffer
+      version: v1beta1
+      name: capacitybuffers.autoscaling.x-k8s.io
+      displayName: CapacityBuffer
+      description: Reserve spare capacity for rapid scale-out (feature-gated)
     - kind: UpCloudNodeClass
       version: v1alpha2
       name: upcloudnodeclasses.karpenter.k8s.upcloud
       displayName: UpCloud Node Class
       description: Configuration for UpCloud node provisioning
   artifacthub.io/changes: |
-    - kind: fixed
-      description: Chart signing now visible on Artifact Hub (signatures stored in OCI registry)
     - kind: added
-      description: artifacthub.io/crds annotation to display CRD information
-    - kind: added
-      description: Optional NodeClass and NodePool creation via values
-    - kind: changed
-      description: Improved NOTES.txt with current API references
-    - kind: changed
-      description: Breaking - storage values restructured to nested struct
-    - kind: changed
-      description: appVersion now includes v prefix (e.g., v1.0.0)
+      description: Core Karpenter CRDs (NodePool, NodeClaim, NodeOverlay, CapacityBuffer) are now bundled with the chart

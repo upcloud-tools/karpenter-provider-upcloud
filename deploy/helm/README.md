@@ -1,9 +1,8 @@
 # karpenter-upcloud
 
 Karpenter provider for [UpCloud](https://upcloud.com), packaged as a Helm chart.
-It installs the Karpenter controller with the UpCloud cloud provider together
-with the `UpCloudNodeClass` CRD, giving your cluster just-in-time, cost-aware node
-autoscaling on UpCloud infrastructure.
+It installs the Karpenter controller with the UpCloud cloud provider together with Karpenter's core CRDs
+and the `UpCloudNodeClass` CRD, giving your cluster just-in-time, cost-aware node autoscaling on UpCloud infrastructure.
 
 > [!IMPORTANT]
 > **Beta** — in working state but not yet production-ready. Core provisioning,
@@ -15,7 +14,7 @@ autoscaling on UpCloud infrastructure.
 - A Kubernetes cluster running **Kubernetes >= 1.31**.
 - An [UpCloud](https://upcloud.com) account with an API token that can manage the
   target cluster. This is usually a UpCloud Managed Kubernetes Service (UKS) cluster.
-- The `UpCloudNodeClass` CRD (bundled with this chart) and Karpenter's standard APIs must be available in the cluster.
+- The `UpCloudNodeClass` CRD as well as Karpenter's core CRDs (`NodePool`, `NodeClaim`, `NodeOverlay`, and the feature-gated `CapacityBuffer`) are bundled with this chart and installed automatically
 - Cluster-admin privileges in the target namespace to create the controller, its `ServiceAccount`, and the required RBAC.
 
 ## Installing

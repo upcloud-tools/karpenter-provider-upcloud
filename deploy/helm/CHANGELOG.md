@@ -1,5 +1,24 @@
 # Helm chart changelog
 
+## [1.2.0] - 2026-08-26
+
+### Added
+- Core Karpenter CRDs are now bundled with the chart, making it self-contained:
+  - `NodePool` (`karpenter.sh/v1`)
+  - `NodeClaim` (`karpenter.sh/v1`)
+  - `NodeOverlay` (`karpenter.sh/v1`)
+  - `CapacityBuffer` (`autoscaling.x-k8s.io/v1beta1`, feature-gated)
+- CRDs sourced from the exact Karpenter dependency the controller is built against, so schemas always match the binary
+- `artifacthub.io/crds` annotation extended to list all bundled CRDs
+
+### Notes
+- Installing this chart alongside upstream Karpenter charts is safe — identical CRDs apply idempotently
+
+## [1.1.2] - 2026-08-23
+
+### Changed
+- Maintenance release to add sigstore asset
+
 ## [1.1.1] - 2026-08-23
 
 ### Added
