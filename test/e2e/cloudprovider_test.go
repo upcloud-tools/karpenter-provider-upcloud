@@ -91,9 +91,7 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 			Labels:  map[string]string{"e2e-run": env.runID},
 		},
 	}
-	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
-		return env.kubeClient.Create(env.ctx, nodeclass)
-	}), "creating nodeclass")
+	env.createNodeClass(t, nodeclass)
 
 	var created *karpv1.NodeClaim
 	t.Cleanup(func() {
@@ -101,11 +99,8 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 			t.Logf("cleaning up NodeClaim %s", created.Name)
 			_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
 		}
-		env.cleanupServers()
-		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
-			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
-		})
 	})
+	env.deferNodeClassCleanup(t, nodeclass)
 
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-bundled-nc-" + env.runID},
@@ -135,36 +130,20 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 	}
 	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
 
-	// Wait for the server to reach started state (not waiting for node to appear in cluster)
 	serverUUID := strings.TrimPrefix(created.Status.ProviderID, "upcloud:////")
-	t.Logf("waiting for server %s to start...", serverUUID)
-	waitCtx, waitCancel := context.WithTimeout(env.ctx, 3*time.Minute)
-	defer waitCancel()
-	if err := env.instanceProvider.WaitForStart(waitCtx, serverUUID); err != nil {
-		t.Fatalf("waiting for server %s to start: %v", serverUUID, err)
-	}
-	t.Logf("server %s is now started", serverUUID)
+	env.waitForServerStart(t, serverUUID)
 
 	// Verify the server was created with bundled storage
 	t.Logf("fetching server details to verify labels...")
 	server, err := env.instanceProvider.Get(env.ctx, serverUUID)
 	if assert.NoError(t, err, "getting server details") {
-		serverLabels := make(map[string]string)
-		for _, l := range server.Labels {
-			serverLabels[l.Key] = l.Value
-		}
+		serverLabels := serverLabelMap(server)
 		assert.Equal(t, env.runID, serverLabels["e2e-run"], "e2e-run label should be passed through")
 		assert.Equal(t, plan, server.Plan, "server should use the bundled-storage plan")
 		t.Logf("✓ server %s created successfully with bundled storage (plan=%s)", serverUUID, plan)
 	}
 
-	// Verify Get works
-	t.Logf("verifying cloudprovider.Get...")
-	got, err := env.cp.Get(env.ctx, created.Status.ProviderID)
-	if assert.NoError(t, err, "Get after Create") {
-		assert.Equal(t, created.Status.ProviderID, got.Status.ProviderID, "providerID mismatch")
-	}
-	t.Logf("✓ all assertions passed")
+	env.verifyCreateGet(t, created)
 }
 
 // TestLiveCloudProviderCreate provisions a real UpCloud server through the cloud provider, creates the corresponding NodeClaim k8s
@@ -194,9 +173,7 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
-		return env.kubeClient.Create(env.ctx, nodeclass)
-	}), "creating nodeclass")
+	env.createNodeClass(t, nodeclass)
 
 	var created *karpv1.NodeClaim
 	t.Cleanup(func() {
@@ -204,11 +181,8 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 			t.Logf("cleaning up NodeClaim %s", created.Name)
 			_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
 		}
-		env.cleanupServers()
-		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
-			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nodeclass)
-		})
 	})
+	env.deferNodeClassCleanup(t, nodeclass)
 
 	gpuFallbackPlans := []string{
 		"GPU-SPOT-8xCPU-64GB-1xL4",
@@ -262,15 +236,8 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	}
 	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
 
-	// Wait for the server to reach started state before proceeding with assertions
 	serverUUID := strings.TrimPrefix(created.Status.ProviderID, "upcloud:////")
-	t.Logf("waiting for server %s to start...", serverUUID)
-	waitCtx, waitCancel := context.WithTimeout(env.ctx, 3*time.Minute)
-	defer waitCancel()
-	if err := env.instanceProvider.WaitForStart(waitCtx, serverUUID); err != nil {
-		t.Fatalf("waiting for server %s to start: %v", serverUUID, err)
-	}
-	t.Logf("server %s is now started", serverUUID)
+	env.waitForServerStart(t, serverUUID)
 
 	assert.True(t, strings.HasPrefix(created.Status.ProviderID, "upcloud:////"), "expected upcloud providerID, got %q", created.Status.ProviderID)
 	assert.True(t, created.Status.Capacity.Cpu().Value() > 0, "expected non-zero CPU capacity")
@@ -281,20 +248,12 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	t.Logf("fetching server details to verify labels...")
 	server, err := env.instanceProvider.Get(env.ctx, serverUUID)
 	if assert.NoError(t, err, "getting server details for label validation") {
-		serverLabels := make(map[string]string)
-		for _, l := range server.Labels {
-			serverLabels[l.Key] = l.Value
-		}
+		serverLabels := serverLabelMap(server)
 		assert.Equal(t, "slash-label", serverLabels["node.kubernetes.io/test"], "label with slash should be passed through to UpCloud server")
 		assert.Equal(t, "dot-label", serverLabels["karpenter.sh/test"], "label with dot should be passed through to UpCloud server")
 		assert.Equal(t, env.runID, serverLabels["e2e-run"], "e2e-run label should be passed through to UpCloud server")
 		t.Logf("✓ all labels verified on server")
 	}
 
-	t.Logf("verifying cloudprovider.Get...")
-	got, err := env.cp.Get(env.ctx, created.Status.ProviderID)
-	if assert.NoError(t, err, "Get after Create") {
-		assert.Equal(t, created.Status.ProviderID, got.Status.ProviderID, "providerID mismatch")
-	}
-	t.Logf("✓ all assertions passed")
+	env.verifyCreateGet(t, created)
 }

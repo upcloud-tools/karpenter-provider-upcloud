@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/client"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/request"
 	"github.com/UpCloudLtd/upcloud-go-api/v8/upcloud/service"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/cloudprovider"
@@ -130,6 +132,58 @@ func (env *e2eTestEnv) envCapacityType() string {
 	return karpv1.CapacityTypeOnDemand
 }
 
+// createNodeClass creates the NodeClass, retrying on transient HTTP/2 errors.
+func (env *e2eTestEnv) createNodeClass(t *testing.T, nc *v1alpha2.UpCloudNodeClass) {
+	t.Helper()
+	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
+		return env.kubeClient.Create(env.ctx, nc)
+	}), "creating nodeclass")
+}
+
+// deferNodeClassCleanup registers cleanup for the NodeClass and any servers tagged with the run ID.
+// The NodeClaim (if one was created) must be cleaned up by the caller, since it does not exist yet at registration time.
+func (env *e2eTestEnv) deferNodeClassCleanup(t *testing.T, nc *v1alpha2.UpCloudNodeClass) {
+	t.Helper()
+	t.Cleanup(func() {
+		env.cleanupServers()
+		_ = retryOnHTTP2Error(context.WithoutCancel(env.ctx), func() error {
+			return env.kubeClient.Delete(context.WithoutCancel(env.ctx), nc)
+		})
+	})
+}
+
+// waitForServerStart blocks until the UpCloud server reaches the started state.
+func (env *e2eTestEnv) waitForServerStart(t *testing.T, serverUUID string) {
+	t.Helper()
+	t.Logf("waiting for server %s to start...", serverUUID)
+	waitCtx, waitCancel := context.WithTimeout(env.ctx, 3*time.Minute)
+	defer waitCancel()
+	if err := env.instanceProvider.WaitForStart(waitCtx, serverUUID); err != nil {
+		t.Fatalf("waiting for server %s to start: %v", serverUUID, err)
+	}
+	t.Logf("server %s is now started", serverUUID)
+}
+
+// serverLabelMap converts a server's label slice into a map for assertions.
+func serverLabelMap(srv *upcloud.ServerDetails) map[string]string {
+	labels := make(map[string]string)
+	for _, l := range srv.Labels {
+		labels[l.Key] = l.Value
+	}
+	return labels
+}
+
+// verifyCreateGet confirms cloudprovider.Get returns the same providerID as Create.
+func (env *e2eTestEnv) verifyCreateGet(t *testing.T, created *karpv1.NodeClaim) {
+	t.Helper()
+	t.Logf("verifying cloudprovider.Get...")
+	got, err := env.cp.Get(env.ctx, created.Status.ProviderID)
+	if assert.NoError(t, err, "Get after Create") {
+		assert.Equal(t, created.Status.ProviderID, got.Status.ProviderID, "providerID mismatch")
+	}
+	t.Logf("✓ all assertions passed")
+}
+
 // e2eServer holds the resources created by provisionServer.
 type e2eServer struct {
 	nodeClaim     *karpv1.NodeClaim
@@ -168,17 +222,17 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string, 
 	nodeclass := &v1alpha2.UpCloudNodeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: nodeclassName},
 		Spec: v1alpha2.UpCloudNodeClassSpec{
-			Zone:    os.Getenv("UPCLOUD_E2E_ZONE"),
+			Zone:    env.zone,
 			Plan:    plan,
 			Storage: storage,
 			Labels:  map[string]string{"e2e-run": env.runID},
 		},
 	}
-	
+
 	require.NoError(t, retryOnHTTP2Error(env.ctx, func() error {
 		return env.kubeClient.Create(env.ctx, nodeclass)
 	}), "creating nodeclass")
-	
+
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-ttl-nc-" + env.runID},
 		Spec: karpv1.NodeClaimSpec{
@@ -206,7 +260,7 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string, 
 	created, err := env.cp.Create(env.ctx, nodeClaim)
 	require.NoError(t, err, "Create")
 	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
-	
+
 	t.Cleanup(func() {
 		t.Logf("cleaning up server %s...", created.Status.ProviderID)
 		_ = env.cp.Delete(context.WithoutCancel(env.ctx), created)
@@ -256,7 +310,7 @@ func (env *e2eTestEnv) provisionServer(t *testing.T, plan, capacityType string, 
 func (env *e2eTestEnv) waitForNodeLabel(t *testing.T, nodeName, labelKey string) {
 	t.Helper()
 	t.Logf("waiting for label %s on node %s...", labelKey, nodeName)
-	
+
 	if err := wait.PollUntilContextTimeout(env.ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		node := &corev1.Node{}
 		if err := env.kubeClient.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
@@ -346,7 +400,7 @@ func nodeReady(node *corev1.Node) bool {
 func (env *e2eTestEnv) waitForUnschedulablePod(t *testing.T, name string) *corev1.Pod {
 	t.Helper()
 	t.Logf("waiting for pod %s to be Unschedulable...", name)
-	
+
 	pod := &corev1.Pod{}
 	if err := wait.PollUntilContextTimeout(env.ctx, 1*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err := env.kubeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: "default"}, pod); err != nil {
@@ -370,7 +424,7 @@ func (env *e2eTestEnv) waitForUnschedulablePod(t *testing.T, name string) *corev
 // runPod creates a simple pause pod on the given node and waits for it to become Running.
 func (env *e2eTestEnv) runPod(t *testing.T, name, nodeName string) *corev1.Pod {
 	t.Helper()
-	
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
 		Spec: corev1.PodSpec{
@@ -379,12 +433,12 @@ func (env *e2eTestEnv) runPod(t *testing.T, name, nodeName string) *corev1.Pod {
 		},
 	}
 	require.NoError(t, env.kubeClient.Create(env.ctx, pod), "creating busy pod")
-	
+
 	t.Cleanup(func() {
 		_ = env.kubeClient.Delete(context.WithoutCancel(env.ctx), pod)
 	})
 	t.Logf("waiting for pod %s to be Running on node %s...", name, nodeName)
-	
+
 	if err := wait.PollUntilContextTimeout(env.ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err := env.kubeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: "default"}, pod); err != nil {
 			return false, nil
@@ -399,7 +453,7 @@ func (env *e2eTestEnv) runPod(t *testing.T, name, nodeName string) *corev1.Pod {
 // patchTTLToExpire patches the TTL annotation on the NodeClaim to expire in the past, forcing a node replacement.
 func (env *e2eTestEnv) patchTTLToExpire(t *testing.T, ncName string) {
 	t.Helper()
-	
+
 	nc := &karpv1.NodeClaim{}
 	require.NoError(t, env.kubeClient.Get(env.ctx, types.NamespacedName{Name: ncName}, nc), "fetching NodeClaim for TTL patch")
 
