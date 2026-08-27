@@ -45,22 +45,22 @@ jobs:
         include:
           - name: cloudnative on-demand
             test: TestLiveCloudProviderCreate
-            plan: CLOUDNATIVE-1xCPU-4GB
+            plans: CLOUDNATIVE-1xCPU-4GB,CLOUDNATIVE-2xCPU-4GB
             capacityType: on-demand
             enabled: true
           - name: gpu spot
             test: TestLiveCloudProviderCreate
-            plan: GPU-SPOT-8xCPU-64GB-1xL4
+            plans: GPU-SPOT-8xCPU-64GB-1xL4,GPU-8xCPU-64GB-1xL4
             capacityType: spot
             enabled: true
           - name: bundled storage
             test: TestLiveCloudProviderCreateBundledStorage
-            plan: STARTER-1xCPU-2GB
+            plans: STARTER-1xCPU-2GB,STARTER-2xCPU-2GB
             capacityType: on-demand
             enabled: true
           - name: TTL
             test: TestLiveNodeClaimTTL
-            plan: CLOUDNATIVE-1xCPU-4GB
+            plans: CLOUDNATIVE-1xCPU-4GB,CLOUDNATIVE-2xCPU-4GB
             capacityType: on-demand
             enabled: ${{ inputs.run_ttl }}
     steps:
@@ -78,4 +78,4 @@ jobs:
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-        run: make test-e2e E2E_TEST="${{ matrix.test }}" E2E_PLAN="${{ matrix.plan }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
+        run: make test-e2e E2E_TEST="${{ matrix.test }}" E2E_PLANS="${{ matrix.plans }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"

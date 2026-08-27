@@ -73,7 +73,11 @@ func TestLiveInstanceTypes(t *testing.T) {
 func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 	env := newE2ETestEnv(t)
 
-	plan := env.envPlan()
+	plans := env.envPlans()
+	if plans == nil {
+		plans = []string{defaultBundledPlan}
+	}
+	plan := plans[0]
 	t.Logf("using bundled-storage plan: %s", plan)
 
 	// Create NodeClass with Storage: nil to test bundled-storage path
@@ -158,10 +162,14 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 func TestLiveCloudProviderCreate(t *testing.T) {
 	env := newE2ETestEnv(t)
 
-	plan := env.envPlan()
+	plans := env.envPlans()
+	if plans == nil {
+		plans = []string{defaultCloudnativePlan}
+	}
 	capacityType := env.envCapacityType()
-	t.Logf("using plan: %s, capacity-type: %s", plan, capacityType)
+	t.Logf("using plans: %v, capacity-type: %s", plans, capacityType)
 
+	plan := plans[0]
 	nodeclassName := "e2e-" + env.runID
 	t.Logf("creating NodeClass %s...", nodeclassName)
 	nodeclass := &v1alpha2.UpCloudNodeClass{
@@ -191,16 +199,6 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	})
 	env.deferNodeClassCleanup(t, nodeclass)
 
-	gpuFallbackPlans := []string{
-		"GPU-SPOT-8xCPU-64GB-1xL4",
-		"GPU-SPOT-12xCPU-128GB-1xL4",
-		"GPU-SPOT-16xCPU-192GB-1xL4",
-	}
-	plansToTry := []string{plan}
-	if plan == gpuFallbackPlans[0] {
-		plansToTry = gpuFallbackPlans
-	}
-
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-nc-" + env.runID},
 		Spec: karpv1.NodeClaimSpec{
@@ -221,7 +219,7 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 	}
 
 	var err error
-	for _, candidate := range plansToTry {
+	for _, candidate := range plans {
 		plan = candidate
 		nodeClaim.Spec.Requirements[1].Values = []string{plan}
 		t.Logf("calling cloudprovider.Create for plan %s (this may take 1-2 minutes)...", plan)
@@ -239,7 +237,7 @@ func TestLiveCloudProviderCreate(t *testing.T) {
 		break
 	}
 	if created == nil {
-		t.Skipf("all GPU plans have no capacity in zone %s", env.zone)
+		t.Skipf("all plans have no capacity in zone %s", env.zone)
 	}
 	t.Logf("server created: providerID=%s, nodeName=%s", created.Status.ProviderID, created.Status.NodeName)
 

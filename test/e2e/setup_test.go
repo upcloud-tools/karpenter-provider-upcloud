@@ -39,6 +39,7 @@ import (
 
 const defaultTemplateUUID    = "01000000-0000-4000-8000-000160150100"
 const defaultCloudnativePlan = "CLOUDNATIVE-1xCPU-4GB"
+const defaultBundledPlan     = "STARTER-1xCPU-2GB"
 
 // e2eTestEnv holds shared cluster clients and the cloud provider for e2e tests.
 type e2eTestEnv struct {
@@ -118,12 +119,22 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 	}
 }
 
-// envPlan returns the plan to use for the test environment.
-func (env *e2eTestEnv) envPlan() string {
-	if p := os.Getenv("UPCLOUD_E2E_PLAN"); p != "" {
-		return p
+// envPlans returns the list of plans to try for the test environment.
+// The first plan is the primary; subsequent plans are fallbacks if the primary is unavailable.
+// Returns nil if UPCLOUD_E2E_PLANS is not set; callers should apply their own defaults.
+func (env *e2eTestEnv) envPlans() []string {
+	if p := os.Getenv("UPCLOUD_E2E_PLANS"); p != "" {
+		return strings.Split(p, ",")
 	}
-	return defaultCloudnativePlan
+	return nil
+}
+
+// envPlanWithDefault returns the primary plan, using the provided default if not set.
+func (env *e2eTestEnv) envPlanWithDefault(defaultPlan string) string {
+	if plans := env.envPlans(); len(plans) > 0 {
+		return plans[0]
+	}
+	return defaultPlan
 }
 
 // envCapacityType returns the capacity type to use for the test environment.

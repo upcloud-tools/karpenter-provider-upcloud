@@ -26,7 +26,7 @@ func TestLiveNodeClaimTTL_Path3_Decommission(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
 	t.Logf("provisioning server for TTL path 3 (decommission) test...")
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	srv := env.provisionServer(t, env.envPlanWithDefault(defaultCloudnativePlan), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
 	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
 	t.Logf("patching TTL to expire...")
@@ -77,7 +77,7 @@ func TestLiveNodeClaimTTL_Path2_Reuse(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
 	t.Logf("provisioning server for TTL path 2 (reuse) test...")
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	srv := env.provisionServer(t, env.envPlanWithDefault(defaultCloudnativePlan), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
 	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
 	t.Logf("tainting node with e2e-test.upcloud.com/no-schedule...")
@@ -183,7 +183,7 @@ func TestLiveNodeClaimTTL_Path1_Reset(t *testing.T) {
 	env := newE2ETestEnv(t)
 	defer env.cleanupServers()
 	t.Logf("provisioning server for TTL path 1 (reset) test...")
-	srv := env.provisionServer(t, env.envPlan(), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
+	srv := env.provisionServer(t, env.envPlanWithDefault(defaultCloudnativePlan), env.envCapacityType(), &v1alpha2.StorageSpec{Size: 20, Tier: upcloud.StorageTierStandard})
 	t.Logf("server provisioned: nodeClaim=%s, node=%s, plan=%s", srv.ncK8sName, srv.nodeName, srv.plan)
 
 	t.Logf("creating busy pod on node %s...", srv.nodeName)
