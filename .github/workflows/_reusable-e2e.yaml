@@ -1,6 +1,9 @@
 on:
   workflow_call:
     inputs:
+      k8s_version:
+        required: true
+        type: string
       run_ttl:
         required: false
         type: boolean
@@ -9,6 +12,13 @@ on:
         required: false
         type: string
         default: latest
+    secrets:
+      KUBE_CONFIG:
+        required: true
+      UPCLOUD_TOKEN:
+        required: true
+      UPCLOUD_KUBERNETES_CLUSTER_ID:
+        required: true
 
 permissions:
   contents: read
@@ -27,7 +37,7 @@ jobs:
       - name: Configure kubeconfig
         run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
 
-      - name: Deploy via Helm
+      - name: Deploy via Helm (k8s ${{ inputs.k8s_version }})
         env:
           CONTAINER_REPO: ${{ env.REGISTRY }}/${{ github.repository }}
           IMAGE_TAG: ${{ inputs.image_tag }}
@@ -73,7 +83,7 @@ jobs:
       - name: Configure kubeconfig
         run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
 
-      - name: Live e2e (${{ matrix.name }})
+      - name: Live e2e (${{ matrix.name }}, k8s ${{ inputs.k8s_version }})
         if: ${{ matrix.enabled }}
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}

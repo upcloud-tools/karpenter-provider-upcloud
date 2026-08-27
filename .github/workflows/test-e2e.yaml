@@ -3,6 +3,26 @@ name: Test E2E
 on:
   workflow_dispatch:
     inputs:
+      run_1_31:
+        type: boolean
+        description: Run tests on k8s 1.31
+        default: true
+      run_1_32:
+        type: boolean
+        description: Run tests on k8s 1.32
+        default: true
+      run_1_33:
+        type: boolean
+        description: Run tests on k8s 1.33
+        default: true
+      run_1_34:
+        type: boolean
+        description: Run tests on k8s 1.34
+        default: true
+      run_1_35:
+        type: boolean
+        description: Run tests on k8s 1.35
+        default: true
       nodeclaimttl-tests:
         type: choice
         description: Run node claim TTL tests
@@ -24,9 +44,62 @@ permissions:
   packages: read
 
 jobs:
-  e2e:
+  e2e-1-31:
+    if: ${{ inputs.run_1_31 }}
     uses: ./.github/workflows/_reusable-e2e.yaml
     with:
+      k8s_version: "1.31"
       run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
       image_tag: ${{ inputs.image_tag }}
-    secrets: inherit
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_31 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_31 }}
+
+  e2e-1-32:
+    if: ${{ inputs.run_1_32 }}
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.32"
+      run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_32 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_32 }}
+
+  e2e-1-33:
+    if: ${{ inputs.run_1_33 }}
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.33"
+      run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_33 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_33 }}
+
+  e2e-1-34:
+    if: ${{ inputs.run_1_34 }}
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.34"
+      run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_34 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_34 }}
+
+  e2e-1-35:
+    if: ${{ inputs.run_1_35 }}
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.35"
+      run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_35 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_35 }}
