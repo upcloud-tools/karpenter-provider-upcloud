@@ -1,5 +1,6 @@
 # Karpenter Provider for UpCloud — Beta
 
+[![Beta](https://img.shields.io/badge/Status-Beta-yellow)](https://github.com/upcloud-tools/karpenter-provider-upcloud)
 [![Build](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test.yaml)
 [![Build](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test-e2e.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test-e2e.yaml)
 [![Go Lint](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/lint-golang.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/lint-golang.yaml)
