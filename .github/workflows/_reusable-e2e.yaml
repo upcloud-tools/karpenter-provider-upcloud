@@ -26,6 +26,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  UPCTL_VERSION: "3.36.0"
 
 jobs:
   deploy:
@@ -36,6 +37,20 @@ jobs:
 
       - name: Configure kubeconfig
         run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Install upctl
+        uses: upcloud-tools/gha-actions/install-upctl@7a6fa5c0eb46d44e81732818a323bba702afb9a0 # main
+        with:
+          upctl-version: ${{ env.UPCTL_VERSION }} 
+          cache-enabled: "true"
+
+      - name: Scale up node group (k8s ${{ inputs.k8s_version }})
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+        run: upctl kubernetes node-group scale ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }} --name default --count 2
+
+      - name: Wait for nodes to be Ready
+        run: kubectl wait --for=condition=Ready node --all --timeout=180s
 
       - name: Deploy via Helm (k8s ${{ inputs.k8s_version }})
         env:
@@ -89,3 +104,22 @@ jobs:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
         run: make test-e2e E2E_TEST="${{ matrix.test }}" E2E_PLANS="${{ matrix.plans }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
+
+  cleanup:
+    if: always()
+    needs: e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install upctl
+        uses: upcloud-tools/gha-actions/install-upctl@7a6fa5c0eb46d44e81732818a323bba702afb9a0 # main
+        with:
+          upctl-version: ${{ env.UPCTL_VERSION }}
+          cache-enabled: "true"
+
+      - name: Scale down node group (k8s ${{ inputs.k8s_version }})
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+        run: upctl kubernetes node-group scale ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }} --name default --count 0
