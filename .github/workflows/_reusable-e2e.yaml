@@ -50,7 +50,7 @@ jobs:
         run: upctl kubernetes node-group scale ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }} --name default --count 2
 
       - name: Wait for nodes to be Ready
-        run: kubectl wait --for=condition=Ready node --all --timeout=180s
+        run: kubectl wait --for=create --for=condition=Ready node --all --timeout=180s
 
       - name: Deploy via Helm (k8s ${{ inputs.k8s_version }})
         env:
