@@ -47,7 +47,7 @@ endif
 E2E_TIMEOUT ?= 20m
 E2E_PLANS ?=
 E2E_CAPACITY_TYPE ?= on-demand
-E2E_TEST ?= .
+E2E_TEST ?= .*
 
 E2E_ENV := UPCLOUD_E2E_PROVISION=1 UPCLOUD_E2E_PLANS=$(E2E_PLANS) UPCLOUD_E2E_CAPACITY_TYPE=$(E2E_CAPACITY_TYPE)
 
@@ -55,10 +55,10 @@ E2E_ENV := UPCLOUD_E2E_PROVISION=1 UPCLOUD_E2E_PLANS=$(E2E_PLANS) UPCLOUD_E2E_CA
 # E2E_TIMEOUT: maximum duration for test execution
 # E2E_PLANS: comma-separated list of UpCloud server plans to try (first is primary, rest are fallbacks that will be tried chronologically if the previous doesn't have capacity)
 # E2E_CAPACITY_TYPE: capacity type for the server, either "on-demand" or "spot"
-# E2E_TEST: specific test function to run (default: "." runs all tests)
+# E2E_TEST: test name pattern to run (default runs all tests, automatically anchored with ^...$ to avoid partial matches)
 .PHONY: test-e2e
 test-e2e:
-	$(E2E_ENV) go test -tags e2e ./test/e2e/ -run $(E2E_TEST) -v -timeout $(E2E_TIMEOUT)
+	$(E2E_ENV) go test -tags e2e ./test/e2e/ -run '^$(E2E_TEST)$$' -v -timeout $(E2E_TIMEOUT)
 
 DEPLOY_NAMESPACE ?= kube-system
 
