@@ -43,22 +43,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: cloudnative on-demand
+          - name: CloudNative on-demand
             test: TestLiveCloudProviderCreate
             plans: CLOUDNATIVE-1xCPU-4GB,CLOUDNATIVE-2xCPU-4GB
             capacityType: on-demand
             enabled: true
-          - name: gpu spot
+          - name: GPU spot
             test: TestLiveCloudProviderCreate
             plans: GPU-SPOT-8xCPU-64GB-1xL4,GPU-8xCPU-64GB-1xL4
             capacityType: spot
             enabled: true
-          - name: bundled storage
+          - name: Bundled storage on-demand
             test: TestLiveCloudProviderCreateBundledStorage
             plans: STARTER-1xCPU-2GB,STARTER-2xCPU-2GB
             capacityType: on-demand
             enabled: true
-          - name: TTL
+          - name: TTL on-demand
             test: TestLiveNodeClaimTTL
             plans: CLOUDNATIVE-1xCPU-4GB,CLOUDNATIVE-2xCPU-4GB
             capacityType: on-demand
