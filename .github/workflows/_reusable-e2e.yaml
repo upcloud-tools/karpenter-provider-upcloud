@@ -81,7 +81,7 @@ jobs:
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
           UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }}
-        run: make test-e2e E2E_TEST="TestLiveCloudProviderCreateBundledStorage" E2E_PLAN="STARTER-1xCPU-1GB" E2E_CAPACITY_TYPE="on-demand"
+        run: make test-e2e E2E_TEST="TestLiveCloudProviderCreateBundledStorage" E2E_PLAN="STARTER-1xCPU-2GB" E2E_CAPACITY_TYPE="on-demand"
 
   e2e-ttl:
     needs: deploy

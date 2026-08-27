@@ -73,10 +73,7 @@ func TestLiveInstanceTypes(t *testing.T) {
 func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 	env := newE2ETestEnv(t)
 
-	plan := os.Getenv("UPCLOUD_E2E_BUNDLED_PLAN")
-	if plan == "" {
-		plan = "STARTER-1xCPU-1GB"
-	}
+	plan := env.envPlan()
 	t.Logf("using bundled-storage plan: %s", plan)
 
 	// Create NodeClass with Storage: nil to test bundled-storage path
@@ -141,6 +138,16 @@ func TestLiveCloudProviderCreateBundledStorage(t *testing.T) {
 		assert.Equal(t, env.runID, serverLabels["e2e-run"], "e2e-run label should be passed through")
 		assert.Equal(t, plan, server.Plan, "server should use the bundled-storage plan")
 		t.Logf("✓ server %s created successfully with bundled storage (plan=%s)", serverUUID, plan)
+
+		// Verify storage size matches the plan's bundled storage
+		if planInfo, ok := env.itProvider.Get(plan); ok && planInfo.StorageSize > 0 {
+			require.NotEmpty(t, server.StorageDevices, "server should have storage devices")
+			rootDisk := server.StorageDevices[0]
+			assert.Equal(t, planInfo.StorageSize, rootDisk.Size, "root disk size should match plan's bundled storage size")
+			t.Logf("✓ root disk size %dGB matches plan's bundled storage", rootDisk.Size)
+		} else {
+			t.Logf("⚠ plan %s not found in instance types or has no bundled storage, skipping size check", plan)
+		}
 	}
 
 	env.verifyCreateGet(t, created)

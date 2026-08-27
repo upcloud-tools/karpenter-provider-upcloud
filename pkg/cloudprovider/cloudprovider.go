@@ -134,11 +134,17 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 	storage := nodeClass.Spec.Storage
 	if planInfo, ok := p.instanceTypeProvider.Get(plan); ok && planInfo.StorageSize > 0 {
 		if storage != nil && (storage.Size > 0 || storage.Tier != "") {
-			log.FromContext(ctx).Info("storage.size/tier ignored for plan (storage is included with plan)",
-				"plan", plan, "bundledStorageSize", planInfo.StorageSize)
-			storage = &v1alpha2.StorageSpec{
-				Encrypted: storage.Encrypted,
-			}
+			log.FromContext(ctx).Info("storage.size/tier overridden by plan's bundled storage",
+				"plan", plan, "bundledStorageSize", planInfo.StorageSize,
+				"requestedSize", storage.Size, "requestedTier", storage.Tier)
+		}
+		var encrypted *bool
+		if storage != nil {
+			encrypted = storage.Encrypted
+		}
+		storage = &v1alpha2.StorageSpec{
+			Size:      planInfo.StorageSize,
+			Encrypted: encrypted,
 		}
 	}
 

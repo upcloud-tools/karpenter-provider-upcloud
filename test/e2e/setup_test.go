@@ -46,6 +46,7 @@ type e2eTestEnv struct {
 	kubeClient       kclient.Client
 	cp               *cloudprovider.UpCloudCloudProvider
 	instanceProvider *instance.Provider
+	itProvider       *instancetypes.Provider
 	runID            string
 	zone             string
 	debug            bool
@@ -110,6 +111,7 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 		kubeClient:       kubeClient,
 		cp:               cp,
 		instanceProvider: instanceProvider,
+		itProvider:       itProvider,
 		runID:            fmt.Sprintf("%d", time.Now().UnixNano()),
 		zone:             cluster.Zone,
 		debug:            os.Getenv("UPCLOUD_E2E_DEBUG") == "1",

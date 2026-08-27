@@ -547,9 +547,9 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-// TestStorageStrippedForBundledStoragePlan verifies that when a plan has bundled storage (StorageSize > 0),
-// the cloudprovider strips size/tier from the storage spec and lets UpCloud use the plan's bundled storage.
-func TestStorageStrippedForBundledStoragePlan(t *testing.T) {
+// TestStorageOverriddenForBundledStoragePlan verifies that when a plan has bundled storage (StorageSize > 0),
+// the cloudprovider overrides size with the plan's bundled storage size and strips tier.
+func TestStorageOverriddenForBundledStoragePlan(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		t.Fatalf("add clientgo scheme: %v", err)
@@ -623,7 +623,7 @@ func TestStorageStrippedForBundledStoragePlan(t *testing.T) {
 		t.Fatalf("Create error: %v", err)
 	}
 
-	// Verify the storage device has no size/tier (stripped for bundled-storage plan)
+	// Verify the storage device has the plan's bundled size and no tier
 	if fakeSrv.lastReq == nil {
 		t.Fatal("CreateServer was not called")
 	}
@@ -631,8 +631,8 @@ func TestStorageStrippedForBundledStoragePlan(t *testing.T) {
 		t.Fatalf("expected one storage device, got %d", len(fakeSrv.lastReq.StorageDevices))
 	}
 	dev := fakeSrv.lastReq.StorageDevices[0]
-	if dev.Size != 0 {
-		t.Errorf("expected size stripped for bundled-storage plan, got %d", dev.Size)
+	if dev.Size != 50 {
+		t.Errorf("expected size to be plan's bundled storage size (50), got %d", dev.Size)
 	}
 	if dev.Tier != "" {
 		t.Errorf("expected tier stripped for bundled-storage plan, got %q", dev.Tier)
