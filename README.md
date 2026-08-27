@@ -1,6 +1,7 @@
 # Karpenter Provider for UpCloud — Beta
 
 [![Build](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test.yaml)
+[![Build](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test-e2e.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/test-e2e.yaml)
 [![Go Lint](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/lint-golang.yaml/badge.svg)](https://github.com/upcloud-tools/karpenter-provider-upcloud/actions/workflows/lint-golang.yaml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/upcloud-tools/karpenter-provider-upcloud/badge)](https://scorecard.dev/viewer/?uri=github.com/upcloud-tools/karpenter-provider-upcloud)
 
