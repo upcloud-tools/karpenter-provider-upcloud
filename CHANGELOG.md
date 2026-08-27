@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The project is still in **Beta**, so expect breaking changes in future releases.
 
+## [1.0.3] - 2026-08-27
+
+### Fixed
+- Storage size bug: bundled-storage plans (STARTER, PREMIUM) now correctly use the plan's bundled disk size instead of falling back to the template size.
+
+### Added
+- E2E test now verifies that the server's root disk size matches the plan's bundled storage size for bundled-storage plans.
+
 ## [1.0.2] - 2026-08-26
 
 ### Added
