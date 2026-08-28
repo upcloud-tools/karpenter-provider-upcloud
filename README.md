@@ -63,16 +63,16 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 ├── apis/v1alpha2/             ← UpCloudNodeClass CRD types
 ├── pkg/
 │   ├── cloudprovider/         ← core provider implementation
-│   │   └── helpers.go          ← bootstrap token + CA bundle
+│   │   └── helpers.go         ← bootstrap token + CA bundle
 │   ├── controllers/           ← Kubernetes controllers
 │   │   ├── nodeclaimttl/      ← alpha TTL controller
 │   │   └── nodeclass/         ← nodeclass reconciliation
 │   ├── providers/
-│   │   ├── options.go          ← env var parsing
-│   │   ├── instance/           ← server lifecycle (Create/Delete/Get/List)
-│   │   ├── instancetypes/      ← plan discovery + cached pricing
-│   │   └── userdata/           ← cloud-init generation
-│   └── util/                   ← shared utility helpers
+│   │   ├── options.go         ← env var parsing
+│   │   ├── instance/          ← server lifecycle (Create/Delete/Get/List)
+│   │   ├── instancetypes/     ← plan discovery + cached pricing
+│   │   └── userdata/          ← cloud-init generation
+│   └── util/                  ← shared utility helpers
 ├── deploy/helm/               ← Helm chart
 ├── examples/                  ← sample CRDs
 ├── Makefile
