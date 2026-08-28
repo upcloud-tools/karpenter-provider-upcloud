@@ -43,8 +43,6 @@ The following table lists the most commonly overridden values. All values are al
 | `config.auth.tokenKey` | string | `token` | Key inside the `Secret` that holds the UpCloud API token. |
 | `config.clusterUUID` | string | `""` | **Required.** UUID of the UpCloud Kubernetes cluster Karpenter manages. |
 | `config.templateUUID` | string | `01000000-0000-4000-8000-000160150100` | OS template UUID (defaults to UKS [Debian] template). |
-| `config.allowStarterPlans` | bool | `false` | Include UpCloud STARTER plans in instance type discovery. |
-| `config.allowPremiumPlans` | bool | `false` | Include UpCloud PREMIUM plans in instance type discovery. |
 | `config.repairToleration` | string | `30m` | How long an unhealthy node is tolerated before repair is triggered. |
 | `config.nodeclaimTTL.enabled` | bool | `false` | Use absolute TTLs to expire node claims. **Alpha** |
 | `config.nodeclaimTTL.ttl` | string | `50m` | TTL applied to node claims when enabled. |
