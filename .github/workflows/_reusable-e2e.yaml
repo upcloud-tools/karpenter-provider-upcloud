@@ -26,23 +26,20 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  UPCTL_VERSION: "3.36.0"
 
 jobs:
   deploy:
-    timeout-minutes: 5
-    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    runs-on: [self-hosted, linux, upcloud]
+    container:
+      image: ghcr.io/upcloud-tools/github-runner:latest
+    env:
+      KUBECTL_VERSION: ${{ inputs.k8s_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Configure kubeconfig
         run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-
-      - name: Install upctl
-        uses: upcloud-tools/gha-actions/install-upctl@f2881d6a065803a93a5af104f83413f4b6f31ca0 # main
-        with:
-          upctl-version: ${{ env.UPCTL_VERSION }} 
-          cache-enabled: "true"
 
       - name: Scale up node group (k8s ${{ inputs.k8s_version }})
         env:
@@ -51,6 +48,11 @@ jobs:
 
       - name: Wait for nodes to be Ready
         run: kubectl wait --for=create --for=condition=Ready node --all --timeout=300s
+
+      - name: Create UpCloud token secret
+        env:
+          UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+        run: kubectl create secret generic upcloud --namespace kube-system --from-literal=token="$UPCLOUD_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy via Helm (k8s ${{ inputs.k8s_version }})
         env:
@@ -63,7 +65,11 @@ jobs:
   e2e:
     timeout-minutes: 10
     needs: deploy
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, upcloud]
+    container:
+      image: ghcr.io/upcloud-tools/github-runner:latest
+    env:
+      KUBECTL_VERSION: ${{ inputs.k8s_version }}
     strategy:
       fail-fast: false
       matrix:
@@ -91,9 +97,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Cache Go modules and build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          go-version-file: go.mod
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: e2e-go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            e2e-go-
 
       - name: Configure kubeconfig
         run: mkdir -p ~/.kube && echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
@@ -108,16 +120,14 @@ jobs:
   cleanup:
     if: always()
     needs: e2e
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, upcloud]
+    container:
+      image: ghcr.io/upcloud-tools/github-runner:latest
+    env:
+      KUBECTL_VERSION: ${{ inputs.k8s_version }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install upctl
-        uses: upcloud-tools/gha-actions/install-upctl@f2881d6a065803a93a5af104f83413f4b6f31ca0 # main
-        with:
-          upctl-version: ${{ env.UPCTL_VERSION }}
-          cache-enabled: "true"
 
       - name: Scale down node group (k8s ${{ inputs.k8s_version }})
         env:

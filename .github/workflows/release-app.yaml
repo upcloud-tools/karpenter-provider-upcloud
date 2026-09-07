@@ -12,6 +12,26 @@ on:
         description: Skip e2e tests
         type: boolean
         default: false
+      run_1_31:
+        description: Run e2e tests on k8s 1.31
+        type: boolean
+        default: true
+      run_1_32:
+        description: Run e2e tests on k8s 1.32
+        type: boolean
+        default: true
+      run_1_33:
+        description: Run e2e tests on k8s 1.33
+        type: boolean
+        default: true
+      run_1_34:
+        description: Run e2e tests on k8s 1.34
+        type: boolean
+        default: true
+      run_1_35:
+        description: Run e2e tests on k8s 1.35
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}
@@ -47,22 +67,82 @@ jobs:
       contents: read
       packages: write
 
-  e2e:
-    needs: build-image
-    if: needs.detect.outputs.skip == 'false' && !inputs['skip-e2e']
+  e2e-1-31:
+    needs: [detect, build-image]
+    if: needs.detect.outputs.skip == 'false' && (github.event_name != 'workflow_dispatch' || inputs.run_1_31) && !inputs['skip-e2e']
     uses: ./.github/workflows/_reusable-e2e.yaml
     with:
+      k8s_version: "1.31"
       run_ttl: false
       image_tag: ${{ github.sha }}
-    secrets: inherit
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_31 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_31 }}
+
+  e2e-1-32:
+    needs: [detect, build-image]
+    if: needs.detect.outputs.skip == 'false' && (github.event_name != 'workflow_dispatch' || inputs.run_1_32) && !inputs['skip-e2e']
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.32"
+      run_ttl: false
+      image_tag: ${{ github.sha }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_32 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_32 }}
+
+  e2e-1-33:
+    needs: [detect, build-image]
+    if: needs.detect.outputs.skip == 'false' && (github.event_name != 'workflow_dispatch' || inputs.run_1_33) && !inputs['skip-e2e']
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.33"
+      run_ttl: false
+      image_tag: ${{ github.sha }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_33 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_33 }}
+
+  e2e-1-34:
+    needs: [detect, build-image]
+    if: needs.detect.outputs.skip == 'false' && (github.event_name != 'workflow_dispatch' || inputs.run_1_34) && !inputs['skip-e2e']
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.34"
+      run_ttl: false
+      image_tag: ${{ github.sha }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_34 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_34 }}
+
+  e2e-1-35:
+    needs: [detect, build-image]
+    if: needs.detect.outputs.skip == 'false' && (github.event_name != 'workflow_dispatch' || inputs.run_1_35) && !inputs['skip-e2e']
+    uses: ./.github/workflows/_reusable-e2e.yaml
+    with:
+      k8s_version: "1.35"
+      run_ttl: false
+      image_tag: ${{ github.sha }}
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_35 }}
+      UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
+      UPCLOUD_KUBERNETES_CLUSTER_ID: ${{ secrets.CLUSTER_ID_1_35 }}
 
   release:
-    needs: [detect, build-image, e2e]
+    needs: [detect, build-image, e2e-1-31, e2e-1-32, e2e-1-33, e2e-1-34, e2e-1-35]
     if: >-
       always() &&
       needs.detect.outputs.skip == 'false' &&
       needs.build-image.result == 'success' &&
-      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
+      (needs.e2e-1-31.result == 'success' || needs.e2e-1-31.result == 'skipped') &&
+      (needs.e2e-1-32.result == 'success' || needs.e2e-1-32.result == 'skipped') &&
+      (needs.e2e-1-33.result == 'success' || needs.e2e-1-33.result == 'skipped') &&
+      (needs.e2e-1-34.result == 'success' || needs.e2e-1-34.result == 'skipped') &&
+      (needs.e2e-1-35.result == 'success' || needs.e2e-1-35.result == 'skipped')
     uses: upcloud-tools/gha-actions/.github/workflows/release-container.yaml@f2881d6a065803a93a5af104f83413f4b6f31ca0 # main
     with:
       app_version: ${{ needs.detect.outputs.app_version }}
