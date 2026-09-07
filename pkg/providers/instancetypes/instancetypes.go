@@ -152,18 +152,29 @@ func (p *Provider) refreshPrices(ctx context.Context) error {
 	return nil
 }
 
-// buildInstanceTypeWithPrices converts an UpCloud plan into a Karpenter InstanceType with CPU, memory, pods, optional GPU, zone, 
+// buildInstanceTypeWithPrices converts an UpCloud plan into a Karpenter InstanceType with CPU, memory, pods, optional GPU, zone,
 // capacity-type offerings, and pricing. Spot plans get a spot capacity-type offering; all others get on-demand.
 func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[string]float64) *cloudprovider.InstanceType {
+	// Clamp plan numbers so capacities handed to the scheduler can never be negative, and
+	// saturate the MiB-to-bytes conversion instead of overflowing on absurd memory amounts.
+	// Genuine UpCloud plans always sit inside these bounds.
+	cores := max(plan.CoreNumber, 0)
+	memoryMB := max(plan.MemoryAmount, 0)
+	memoryBytes := int64(math.MaxInt64)
+	if int64(memoryMB) <= math.MaxInt64/(1024*1024) {
+		memoryBytes = int64(memoryMB) * 1024 * 1024
+	}
+	gpuAmount := max(plan.GPUAmount, 0)
+
 	resources := corev1.ResourceList{
-		corev1.ResourceCPU:    *resource.NewQuantity(int64(plan.CoreNumber), resource.DecimalSI),
-		corev1.ResourceMemory: *resource.NewQuantity(int64(plan.MemoryAmount)*1024*1024, resource.BinarySI),
+		corev1.ResourceCPU:    *resource.NewQuantity(int64(cores), resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(memoryBytes, resource.BinarySI),
 		corev1.ResourcePods:   *resource.NewQuantity(110, resource.DecimalSI),
 	}
 	// Surface GPU capacity so pods requesting nvidia.com/gpu can be scheduled.
 	// Karpenter treats any dot-namespaced resource as an accelerator automatically.
-	if plan.GPUAmount > 0 {
-		resources[v1alpha2.ResourceNvidiaGPU] = *resource.NewQuantity(int64(plan.GPUAmount), resource.DecimalSI)
+	if gpuAmount > 0 {
+		resources[v1alpha2.ResourceNvidiaGPU] = *resource.NewQuantity(int64(gpuAmount), resource.DecimalSI)
 	}
 
 	price := math.MaxFloat64
@@ -194,13 +205,13 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, p.zone),
 		scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, capacityType),
 		scheduling.NewRequirement(v1alpha2.LabelInstanceFamily, corev1.NodeSelectorOpIn, util.InstanceFamily(plan.Name)),
-		scheduling.NewRequirement(v1alpha2.LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.CoreNumber)),
-		scheduling.NewRequirement(v1alpha2.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.MemoryAmount)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", cores)),
+		scheduling.NewRequirement(v1alpha2.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", memoryMB)),
 		scheduling.NewRequirement(v1alpha2.LabelInstanceStorageSize, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.StorageSize)),
 	}
-	if plan.GPUAmount > 0 {
+	if gpuAmount > 0 {
 		reqs = append(reqs,
-			scheduling.NewRequirement(v1alpha2.LabelInstanceGPUCount, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", plan.GPUAmount)),
+			scheduling.NewRequirement(v1alpha2.LabelInstanceGPUCount, corev1.NodeSelectorOpIn, fmt.Sprintf("%d", gpuAmount)),
 			scheduling.NewRequirement(v1alpha2.LabelInstanceGPUModel, corev1.NodeSelectorOpIn, plan.GPUModel),
 		)
 	}
@@ -213,5 +224,3 @@ func (p *Provider) buildInstanceTypeWithPrices(plan upcloud.Plan, prices map[str
 		Overhead:     &cloudprovider.InstanceTypeOverhead{},
 	}
 }
-
-

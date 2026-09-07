@@ -92,6 +92,31 @@ test:
 	go vet ./...
 	go test -race ./...
 
+FUZZ_TIME ?= 30s
+
+UTIL_FUZZ_TARGETS = FuzzIsSpotPlan FuzzInstanceFamily
+INSTANCETYPES_FUZZ_TARGETS = FuzzBuildInstanceType
+NODECLASS_FUZZ_TARGETS = FuzzNodeClassHash
+USERDATA_FUZZ_TARGETS = FuzzUserdataGenerate
+
+# Run each fuzz target for FUZZ_TIME (default 30s).
+# Failures are accumulated so any crashing target fails the run as a whole, while every remaining target still gets its turn.
+.PHONY: fuzz
+fuzz:
+	@failures=0; \
+	run() { \
+		pkg=$$1; shift; \
+		for t in $$@; do \
+			echo "==> Fuzzing $$t ($$pkg)"; \
+			go test -fuzz="^$$t$$" -fuzztime=$(FUZZ_TIME) $$pkg || failures=$$((failures+1)); \
+		done; \
+	}; \
+	run ./pkg/util/ $(UTIL_FUZZ_TARGETS); \
+	run ./pkg/providers/instancetypes/ $(INSTANCETYPES_FUZZ_TARGETS); \
+	run ./apis/v1alpha2/ $(NODECLASS_FUZZ_TARGETS); \
+	run ./pkg/providers/userdata/ $(USERDATA_FUZZ_TARGETS); \
+	if [ $$failures -ne 0 ]; then echo "==> $$failures fuzz target(s) failed"; exit 1; fi
+
 # Build the karpenter-upcloud binary
 # CGO_ENABLED: enable/disable CGO compilation
 # GOOS: target operating system

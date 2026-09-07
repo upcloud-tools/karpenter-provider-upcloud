@@ -7,6 +7,75 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+func TestValidateSingleLine(t *testing.T) {
+	t.Run("accepts printable and valid UTF-8 values", func(t *testing.T) {
+		cases := map[string]string{
+			"empty":                "",
+			"tab":                  "\t",
+			"printable ASCII":      "k=v",
+			"double-byte UTF-8":    "é",
+			"astral UTF-8":         "🚀",
+			"NBSP":                 "\u00a0",
+			"shell metacharacters": `x'$(id)"y`,
+		}
+		for name, v := range cases {
+			t.Run(name, func(t *testing.T) {
+				if err := validateSingleLine("field", v); err != nil {
+					t.Errorf("expected %q to be accepted, got %v", v, err)
+				}
+			})
+		}
+	})
+
+	t.Run("rejects line breaks and disallowed controls", func(t *testing.T) {
+		cases := map[string]string{
+			"LF":                         "a\nb",
+			"CR":                         "a\rb",
+			"NUL":                        "a\x00b",
+			"ESC":                        "a\x1bb",
+			"DEL":                        "a\x7fb",
+			"C1 U+0080":                  "a\u0080b",
+			"C1 NEL U+0085":              "a\u0085b",
+			"C1 U+009F":                  "a\u009fb",
+			"line separator U+2028":      "a\u2028b",
+			"paragraph separator U+2029": "a\u2029b",
+			"non-character U+FFFE":       "a\uFFFEb",
+			"non-character U+FFFF":       "a\uFFFFb",
+		}
+		for name, v := range cases {
+			t.Run(name, func(t *testing.T) {
+				if err := validateSingleLine("field", v); err == nil {
+					t.Errorf("expected %q to be rejected", v)
+				}
+			})
+		}
+	})
+
+	t.Run("rejects invalid UTF-8 and names the cause", func(t *testing.T) {
+		cases := map[string]string{
+			"lone lead byte":       "\xd6",
+			"invalid continuation": "a\xffb",
+		}
+		for name, v := range cases {
+			t.Run(name, func(t *testing.T) {
+				err := validateSingleLine("node labels", v)
+				if err == nil {
+					t.Fatalf("expected %q to be rejected", v)
+				}
+				if !strings.Contains(err.Error(), "node labels") || !strings.Contains(err.Error(), "invalid UTF-8") {
+					t.Errorf("expected error to name the field and the UTF-8 cause, got %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("error names the offending field", func(t *testing.T) {
+		if err := validateSingleLine("taint key", "x\ny"); err == nil || !strings.Contains(err.Error(), "taint key") {
+			t.Errorf("expected error to mention the field, got %v", err)
+		}
+	})
+}
+
 func TestGenerateIncludesBootstrapSecrets(t *testing.T) {
 	opts := &Options{
 		ClusterEndpoint:   "https://10.0.0.1:6443",
@@ -47,7 +116,7 @@ func TestGenerateNodeLabels(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Generate returned error: %v", err)
 		}
-		if !strings.Contains(out, `NODE_LABELS="custom=yes,topology.kubernetes.io/zone=de-fra1"`) {
+		if !strings.Contains(out, `NODE_LABELS='custom=yes,topology.kubernetes.io/zone=de-fra1'`) {
 			t.Errorf("expected NODE_LABELS assignment with comma-joined labels, got:\n%s", out)
 		}
 		if !strings.Contains(out, "--node-labels=$NODE_LABELS") {
@@ -60,11 +129,48 @@ func TestGenerateNodeLabels(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Generate returned error: %v", err)
 		}
-		if !strings.Contains(out, `NODE_LABELS=""`) {
+		if !strings.Contains(out, `NODE_LABELS=''`) {
 			t.Errorf("expected empty NODE_LABELS assignment when labels are empty")
 		}
 		if strings.Contains(out, "topology.kubernetes.io/zone=de-fra1") {
 			t.Errorf("expected no label values when labels are empty")
+		}
+	})
+
+	t.Run("label values are shell-quoted", func(t *testing.T) {
+		out, err := NewProvider().Generate(&Options{
+			Labels: map[string]string{"evil": `x'y`},
+		})
+		if err != nil {
+			t.Fatalf("Generate returned error: %v", err)
+		}
+		if !strings.Contains(out, `NODE_LABELS='evil=x'\''y'`) {
+			t.Errorf("expected single-quoted NODE_LABELS with escaped quote, got:\n%s", out)
+		}
+	})
+
+	t.Run("rejects values that would break the document", func(t *testing.T) {
+		cases := map[string]*Options{
+			"label value with newline": {Labels: map[string]string{"k": "x\ny"}},
+			"label key with newline":   {Labels: map[string]string{"k\nx": "y"}},
+			"endpoint with newline":    {ClusterEndpoint: "https://a:6443\nextra: true"},
+			"endpoint with NUL":        {ClusterEndpoint: "https://a:6443\x00"},
+			"label with invalid UTF-8": {Labels: map[string]string{"\xd6": "0"}},
+			"taint effect with DEL":    {Taints: []corev1.Taint{{Key: "k", Value: "v", Effect: "\x7f"}}},
+			"label with U+FFFE":        {Labels: map[string]string{"k": "v\uFFFE"}},
+			"taint key with U+FFFF":    {Taints: []corev1.Taint{{Key: "k\uFFFF", Value: "v", Effect: "NoSchedule"}}},
+			"endpoint with U+FFFE":     {ClusterEndpoint: "https://a:6443\uFFFE"},
+			"label with double quote":  {Labels: map[string]string{"k": `a"b`}},
+			"label key with dollar":    {Labels: map[string]string{"$key": "v"}},
+			"label with backtick":      {Labels: map[string]string{"k": "a`id`b"}},
+			"label with backslash":     {Labels: map[string]string{"k": `a\b`}},
+		}
+		for name, opts := range cases {
+			t.Run(name, func(t *testing.T) {
+				if out, err := NewProvider().Generate(opts); err == nil || out != "" {
+					t.Errorf("expected rejection with empty output, got err=%v out=%q", err, out)
+				}
+			})
 		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,68 @@ func NewProvider() *Provider {
 	return &Provider{}
 }
 
+// validateSingleLine rejects values containing line breaks, disallowed control chars, or byte sequences that are not valid UTF-8.
+// Such values would split the lines they are interpolated into inside the generated cloud-init document,
+// corrupting the YAML structure (or injecting keys into embedded configs) instead of staying inside a single string.
+// Tabs are allowed; the rejection set covers everything the go-yaml reader refuses plus line breaks:
+// C0 controls other than tab, DEL (0x7F), C1 controls (including U+0085, a line break for libyaml scanners),
+// the U+2028/U+2029 line separators, and the U+FFFE/U+FFFF non-characters.
+func validateSingleLine(what, s string) error {
+	if !utf8.ValidString(s) {
+		return fmt.Errorf("%s contains invalid UTF-8", what)
+	}
+	for _, r := range s {
+		if (r < 0x20 && r != '\t') || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0x2028 || r == 0x2029 || r == 0xFFFE || r == 0xFFFF {
+			return fmt.Errorf("%s contains a disallowed control character %q", what, r)
+		}
+	}
+	return nil
+}
+
+// shellSingleQuote wraps s in single quotes, escaping embedded single quotes using the standard backslash-quote shell idiom,
+// so the value stays one literal token in the generated runcmd script. Labels are additionally checked by validateShellSafe,
+// which removes the characters that would be reinterpreted downstream.
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// validateShellSafe rejects characters that the shell or systemd reinterpret after runcmd runs:
+// the script echoes KUBELET_EXTRA_ARGS (containing the node labels) as a double-quoted value into /etc/default/kubelet,
+// which is parsed a second time when kubelet starts, where a double quote flips quoting, a dollar sign or backtick triggers expansion,
+// and a backslash escapes. Kubernetes label syntax admits none of them, so valid input is never rejected.
+func validateShellSafe(what, s string) error {
+	if i := strings.IndexAny(s, "\"$`\\"); i >= 0 {
+		return fmt.Errorf("%s contains a shell-significant character %q", what, s[i])
+	}
+	return nil
+}
+
 func (p *Provider) Generate(opts *Options) (string, error) {
+	if err := validateSingleLine("cluster endpoint", opts.ClusterEndpoint); err != nil {
+		return "", err
+	}
+	nodeLabels := serializeLabels(opts.Labels)
+	if err := validateSingleLine("node labels", nodeLabels); err != nil {
+		return "", err
+	}
+	if err := validateShellSafe("node labels", nodeLabels); err != nil {
+		return "", err
+	}
+	// The YAML encoder escapes most of these values safely, but the encoder and parser disagree
+	// on some control characters (e.g. DEL is emitted verbatim yet rejected when reading), so
+	// taint inputs are held to the same single-line contract as everything else we interpolate.
+	for _, taint := range opts.Taints {
+		for _, field := range []struct{ what, value string }{
+			{"taint key", taint.Key},
+			{"taint value", taint.Value},
+			{"taint effect", string(taint.Effect)},
+		} {
+			if err := validateSingleLine(field.what, field.value); err != nil {
+				return "", err
+			}
+		}
+	}
+
 	caCertB64 := base64.StdEncoding.EncodeToString([]byte(opts.CACertPEM))
 	certB64 := base64.StdEncoding.EncodeToString([]byte(opts.KubeletClientCert))
 	keyB64 := base64.StdEncoding.EncodeToString([]byte(opts.KubeletClientKey))
@@ -51,7 +113,7 @@ func (p *Provider) Generate(opts *Options) (string, error) {
 		"KubeletKeyB64":   keyB64,
 		"ClusterEndpoint": opts.ClusterEndpoint,
 		"KubeletConfig":   kubeletConfigIndented,
-		"NodeLabels":      serializeLabels(opts.Labels),
+		"NodeLabels":      shellSingleQuote(nodeLabels),
 	})
 	if err != nil {
 		return "", fmt.Errorf("executing userdata template: %w", err)
@@ -204,7 +266,7 @@ runcmd:
     done
 
     PROVIDER_ID="upcloud:////$(curl -s http://169.254.169.254/metadata/v1/instance_id)"
-    NODE_LABELS="{{ .NodeLabels }}"
+    NODE_LABELS={{ .NodeLabels }}
 
     if ! grep -q "$(hostname)" /etc/hosts; then
       echo "$PRIVATE_IP  $(hostname)" >> /etc/hosts
