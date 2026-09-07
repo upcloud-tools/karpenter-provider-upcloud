@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The project is still in **Beta**, so expect breaking changes in future releases.
 
+## [1.0.4] - 2026-09-07
+
+### Added
+- Native Go fuzzing targets covering the userdata generator, instance-type conversion, node class hashing, and plan-name helpers. 
+- `make fuzz` target that runs each fuzz target for a configurable duration.
+- Weekly scheduled fuzzing CI workflow that uploads crashers as artifacts on failure. Found crashers are committed under `testdata/fuzz/` as permanent regression seeds.
+
+### Fixed
+- User data generation now rejects inputs containing line breaks, YAML-disallowed control characters, invalid UTF-8, or the U+FFFE/U+FFFF non-characters, and node labels are additionally shell-quoted and validated against shell-significant characters. This prevents corrupted or exploitable cloud-init documents, e.g. a label value that split the generated `runcmd` script or injected keys into embedded kubelet configs.
+- Instance-type conversion clamps negative CPU, memory, and GPU plan values to zero and saturates the MiB-to-bytes conversion instead of overflowing into negative capacity quantities for extreme memory amounts.
+
 ## [1.0.3] - 2026-08-27
 
 ### Fixed
