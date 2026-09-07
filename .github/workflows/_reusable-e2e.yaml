@@ -118,7 +118,7 @@ jobs:
         run: make test-e2e E2E_TEST="${{ matrix.test }}" E2E_PLANS="${{ matrix.plans }}" E2E_CAPACITY_TYPE="${{ matrix.capacityType }}"
 
   cleanup:
-    if: always()
+    if: ${{ needs.e2e.result == 'success' }}
     needs: e2e
     runs-on: [self-hosted, linux, upcloud]
     container:
