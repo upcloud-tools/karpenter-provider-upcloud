@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -ldflags="-s -w -X github.com/upcloud-tools/karpenter-provider-upcloud/internal/version.Version=${VERSION} -X github.com/upcloud-tools/karpenter-provider-upcloud/internal/version.Commit=${COMMIT} -X github.com/upcloud-tools/karpenter-provider-upcloud/internal/version.TreeState=${TREE_STATE}" \
     -o karpenter-upcloud ./cmd/karpenter-upcloud
 
-FROM alpine:3.23.5
+FROM alpine:3.24.1
 
 LABEL org.opencontainers.image.source=https://github.com/upcloud-tools/karpenter-provider-upcloud \
       org.opencontainers.image.description="Karpenter provider for UpCloud Kubernetes Service"
