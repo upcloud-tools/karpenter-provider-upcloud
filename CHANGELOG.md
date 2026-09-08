@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The project is still in **Beta**, so expect breaking changes in future releases.
 
+## [1.1.0] - 2026-09-08
+
+### Added
+- Drift detection now stamps NodeClaims with a hash algorithm version (`karpenter.k8s.upcloud/nodeclass-hash-version`, current: `v2`) alongside the spec hash. Future changes to the hashing mechanism re-baseline stored hashes in place via the NodeClass controller instead of recycling every node over a digest change.
+- Claims launched without a hash annotation (provisioned before drift detection existed) are adopted into drift detection by the NodeClass controller.
+- `NodeClaimFailedToResolveNodeClass` warning event on NodeClaims whose `UpCloudNodeClass` cannot be resolved.
+- Live e2e drift suite covering the full recycle signal: stamp-on-create, spec change → `NodeClassDrifted`, list reordering → no drift, and hash-version exemption.
+
+### Changed
+- The NodeClass spec hash is computed with set semantics: reordering `taints`, `sshKeys`, or `kubeletArgs` in the spec no longer marks nodes as drifted, and empty and omitted list/map fields hash identically. Note that explicitly setting a boolean option to `false` (e.g. `utilityNetworkAccess`) still differs from omitting it.
+- `serverGroupUUID` and `utilityNetworkAccess` are now documented as drift triggers.
+- The NodeClass hash fuzz target now also asserts reorder invariance as a hard property, alongside determinism.
+
+### Fixed
+- A deleted `UpCloudNodeClass` no longer leaves the drift check erroring and requeuing forever: the NodeClaim emits a warning event and is left undisrupted until the NodeClass returns.
+- Nil-pointer panic in NodeClass resolution when a NodeClaim has no `nodeClassRef`.
+
 ## [1.0.4] - 2026-09-07
 
 ### Added
