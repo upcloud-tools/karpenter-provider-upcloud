@@ -286,9 +286,12 @@ func TestCreate(t *testing.T) {
 	if !found {
 		t.Errorf("expected managed=true label on created server")
 	}
-	// the NodeClaim must carry the NodeClass hash annotation for drift detection
+	// the NodeClaim must carry the NodeClass hash annotations for drift detection
 	if created.Annotations[apisv1alpha2.NodeClassHashAnnotationKey] == "" {
 		t.Errorf("expected NodeClass hash annotation on created NodeClaim")
+	}
+	if got := created.Annotations[apisv1alpha2.NodeClassHashVersionAnnotationKey]; got != apisv1alpha2.NodeClassHashVersion {
+		t.Errorf("expected NodeClass hash version %q on created NodeClaim, got %q", apisv1alpha2.NodeClassHashVersion, got)
 	}
 }
 
@@ -466,6 +469,43 @@ func TestIsDriftedNoAnnotation(t *testing.T) {
 	}
 	if reason != "" {
 		t.Errorf("expected no drift for annotation-less NodeClaim (avoid disrupting legacy nodes), got %q", reason)
+	}
+}
+
+func TestIsDriftedUnversionedLegacyHash(t *testing.T) {
+	cp, _, _ := newTestProvider(t)
+	created, err := cp.Create(context.Background(), newTestNodeClaim())
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	// Simulate a claim stamped by the pre-versioning (v1) hasher: hash present, no version.
+	// It must be exempt from comparison until the nodeclass controller re-baselines it.
+	created.Annotations[apisv1alpha2.NodeClassHashAnnotationKey] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	delete(created.Annotations, apisv1alpha2.NodeClassHashVersionAnnotationKey)
+
+	reason, err := cp.IsDrifted(context.Background(), created)
+	if err != nil {
+		t.Fatalf("IsDrifted error: %v", err)
+	}
+	if reason != "" {
+		t.Errorf("expected no drift for claim with superseded hash version, got %q", reason)
+	}
+}
+
+func TestIsDriftedVersionMismatch(t *testing.T) {
+	cp, _, _ := newTestProvider(t)
+	created, err := cp.Create(context.Background(), newTestNodeClaim())
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	created.Annotations[apisv1alpha2.NodeClassHashVersionAnnotationKey] = "v999"
+
+	reason, err := cp.IsDrifted(context.Background(), created)
+	if err != nil {
+		t.Fatalf("IsDrifted error: %v", err)
+	}
+	if reason != "" {
+		t.Errorf("expected no drift when claim hash version differs from code version, got %q", reason)
 	}
 }
 

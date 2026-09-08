@@ -172,7 +172,8 @@ func (p *UpCloudCloudProvider) Create(ctx context.Context, nodeClaim *karpv1.Nod
 			Name:   serverName,
 			Labels: nodeLabels,
 			Annotations: map[string]string{
-				v1alpha2.NodeClassHashAnnotationKey: nodeClass.Hash(),
+				v1alpha2.NodeClassHashAnnotationKey:        nodeClass.Hash(),
+				v1alpha2.NodeClassHashVersionAnnotationKey: v1alpha2.NodeClassHashVersion,
 			},
 		},
 		Spec: karpv1.NodeClaimSpec{
@@ -255,9 +256,16 @@ func (p *UpCloudCloudProvider) IsDrifted(ctx context.Context, nodeClaim *karpv1.
 		return "", cloudprovider.IgnoreNodeClaimNotFoundError(fmt.Errorf("resolving node class: %w", err))
 	}
 
-	// Nodes created before drift detection existed carry no hash annotation; don't disrupt them.
+	// No stored hash means nothing to compare yet: either the claim is still launching (Create stamps
+	// it) or it predates drift detection and the nodeclass controller is about to adopt it.
 	stored := nodeClaim.Annotations[v1alpha2.NodeClassHashAnnotationKey]
 	if stored == "" {
+		return "", nil
+	}
+
+	// A claim hashed by a different algorithm version can't be compared against the current hash.
+	// Leave it undisrupted; the nodeclass controller re-baselines such claims in place.
+	if nodeClaim.Annotations[v1alpha2.NodeClassHashVersionAnnotationKey] != v1alpha2.NodeClassHashVersion {
 		return "", nil
 	}
 

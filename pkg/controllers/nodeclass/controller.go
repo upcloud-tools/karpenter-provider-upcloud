@@ -16,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+	nodeclaimutils "sigs.k8s.io/karpenter/pkg/utils/nodeclaim"
 )
 
 type Controller struct {
@@ -69,7 +71,52 @@ func (r *Controller) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
+	if err := r.rebaselineClaimHashes(ctx, nodeClass); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// rebaselineClaimHashes brings every launched NodeClaim's hash annotations up to date:
+//   - Claims stamped by a superseded hash algorithm get the live hash and current version re-stamped. Without this, a change
+//     to how the hash is computed would look like drift on every node at once and recycle the whole fleet over a change
+//     internal to Karpenter.
+//   - Claims that never carried a hash (launched before drift detection shipped) are adopted the same way, so no node stays
+//     permanently outside drift detection.
+//
+// Claims evaluated as Drifted keep their stored hash so genuine drift survives the pass. Claims that have not launched yet
+// (no providerID) are skipped: Create() stamps their hash as part of provisioning, and writing it earlier would race with that.
+func (r *Controller) rebaselineClaimHashes(ctx context.Context, nodeClass *apiv1.UpCloudNodeClass) error {
+	nodeClaims := &karpv1.NodeClaimList{}
+	if err := r.List(ctx, nodeClaims, nodeclaimutils.ForNodeClass(nodeClass)); err != nil {
+		return fmt.Errorf("listing nodeclaims for hash re-baseline: %w", err)
+	}
+
+	for i := range nodeClaims.Items {
+		claim := &nodeClaims.Items[i]
+		_, hasHash := claim.Annotations[apiv1.NodeClassHashAnnotationKey]
+		if !hasHash && claim.Status.ProviderID == "" {
+			continue
+		}
+		if hasHash && claim.Annotations[apiv1.NodeClassHashVersionAnnotationKey] == apiv1.NodeClassHashVersion {
+			continue
+		}
+		if drifted := claim.StatusConditions().Get(karpv1.ConditionTypeDrifted); drifted != nil && drifted.IsTrue() {
+			continue
+		}
+
+		stored := claim.DeepCopy()
+		if claim.Annotations == nil {
+			claim.Annotations = map[string]string{}
+		}
+		claim.Annotations[apiv1.NodeClassHashAnnotationKey] = nodeClass.Hash()
+		claim.Annotations[apiv1.NodeClassHashVersionAnnotationKey] = apiv1.NodeClassHashVersion
+		if err := r.Patch(ctx, claim, client.MergeFrom(stored)); err != nil {
+			return fmt.Errorf("re-baselining nodeclaim hash %s: %w", claim.Name, err)
+		}
+	}
+	return nil
 }
 
 func (r *Controller) handleDeletion(ctx context.Context, nodeClass *apiv1.UpCloudNodeClass) (reconcile.Result, error) {

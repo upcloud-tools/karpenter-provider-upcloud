@@ -138,12 +138,14 @@ Karpenter does not size disks from pod storage requests; the disk is a fixed, co
 
 ### Drift detection
 
-When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.k8s.upcloud/nodeclass-hash`).
+When an `UpCloudNodeClass` is updated, the provider detects the change and recycles the affected nodes. At `Create()` time the provider stamps the NodeClaim with the hash of the `UpCloudNodeClass` spec (annotation `karpenter.k8s.upcloud/nodeclass-hash`) and the hash algorithm version (annotation `karpenter.k8s.upcloud/nodeclass-hash-version`).
 On every reconciliation `IsDrifted()` compares that stored hash against the live `UpCloudNodeClass`. If they differ, the NodeClaim is marked drifted and Karpenter cordons, drains, and terminates it so a replacement is launched with the new config.
 
-The following fields trigger drift when changed: `zone`, `plan`, `storage`, `sshKeys`, `kubeletArgs`, `labels`, and `taints`.
+The following fields trigger drift when changed: `zone`, `plan`, `storage`, `sshKeys`, `kubeletArgs`, `labels`, `taints`, `serverGroupUUID`, and `utilityNetworkAccess`.
 
-Nodes created before drift detection existed carry no hash annotation and are left untouched to avoid disrupting running workloads.
+The hash is order-insensitive: reordering `sshKeys`, `kubeletArgs`, or `taints` is not drift, and omitted and empty list/map fields hash identically. Explicitly setting a boolean option to its default (e.g. `utilityNetworkAccess: false`) can still differ from omitting it.
+
+Hash versioning protects against algorithm changes: a NodeClaim is only compared when its stored hash version matches the running Karpenter version, and the NodeClass controller re-baselines older claims with the current hash in place, so upgrading Karpenter never recycles nodes over a digest change alone. Claims already evaluated as drifted keep their state and are still recycled.
 
 If a NodeClaim's `UpCloudNodeClass` is deleted, drift is not evaluated (the NodeClaim is left running) and a `NodeClaimFailedToResolveNodeClass` warning event is recorded on the NodeClaim.
 

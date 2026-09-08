@@ -3,16 +3,17 @@ package v1alpha2
 import (
 	"encoding/json"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-var hashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var hashPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 
-// FuzzNodeClassHash decodes fuzzed JSON into a NodeClass spec and asserts that Hash always
-// yields a well-formed SHA-256 hex digest that is identical for a deep copy of the spec.
-// Drift detection compares this hash across reconcile loops, so determinism is a hard invariant.
+// FuzzNodeClassHash decodes fuzzed JSON into a NodeClass spec and asserts that Hash always yields a well-formed 64-bit hex digest
+// that is identical for a deep copy of the spec and invariant under reordering of list fields. Drift detection compares this hash
+// across reconcile loops and releases, so determinism is a hard invariant and order-sensitivity a false-positive source.
 func FuzzNodeClassHash(f *testing.F) {
 	f.Add([]byte(`{}`))
 	f.Add([]byte(`null`))
@@ -22,6 +23,7 @@ func FuzzNodeClassHash(f *testing.F) {
 	f.Add([]byte(`{"zone":"de-fra1"`))
 	f.Add([]byte(`{"unknown":true}`))
 	f.Add([]byte(`{"storage":{"size":-1,"tier":"\u0000"},"kubeletArgs":[]}`))
+	f.Add([]byte(`{"sshKeys":["a","b","c"],"kubeletArgs":[{"key":"a","value":"1"},{"key":"b","value":"2"}],"taints":[{"key":"a","effect":"NoSchedule"},{"key":"b","effect":"NoExecute"}]}`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var spec UpCloudNodeClassSpec
@@ -30,7 +32,13 @@ func FuzzNodeClassHash(f *testing.F) {
 		}
 		nc := &UpCloudNodeClass{Spec: spec}
 		hash := nc.Hash()
-		require.Regexp(t, hashPattern, hash, "hash must be a 64-char lowercase hex digest")
+		require.Regexp(t, hashPattern, hash, "hash must be a 16-char lowercase hex digest")
 		require.Equal(t, hash, nc.DeepCopy().Hash(), "hash must be stable across deep copies")
+
+		reversed := nc.DeepCopy()
+		slices.Reverse(reversed.Spec.SSHKeys)
+		slices.Reverse(reversed.Spec.KubeletArgs)
+		slices.Reverse(reversed.Spec.Taints)
+		require.Equal(t, hash, reversed.Hash(), "hash must be invariant under reordering of list fields")
 	})
 }
