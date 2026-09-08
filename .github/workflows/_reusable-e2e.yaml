@@ -44,7 +44,7 @@ jobs:
       - name: Scale up node group (k8s ${{ inputs.k8s_version }})
         env:
           UPCLOUD_TOKEN: ${{ secrets.UPCLOUD_TOKEN }}
-        run: upctl kubernetes node-group scale ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }} --name default --count 2
+        run: upctl kubernetes node-group scale ${{ secrets.UPCLOUD_KUBERNETES_CLUSTER_ID }} --name default --count 1
 
       - name: Wait for nodes to be Ready
         run: kubectl wait --for=create --for=condition=Ready node --all --timeout=300s
