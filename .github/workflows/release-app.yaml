@@ -126,6 +126,8 @@ jobs:
     with:
       k8s_version: "1.35"
       run_ttl: false
+      # GPU tests run only on the latest k8s version; move this flag when adding a newer version.
+      run_gpu: true
       image_tag: ${{ github.sha }}
     secrets:
       KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_35 }}

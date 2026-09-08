@@ -8,6 +8,10 @@ on:
         required: false
         type: boolean
         default: true
+      run_gpu:
+        required: false
+        type: boolean
+        default: false
       image_tag:
         required: false
         type: string
@@ -83,7 +87,7 @@ jobs:
             test: TestLiveCloudProviderCreate
             plans: GPU-SPOT-8xCPU-64GB-1xL4,GPU-8xCPU-64GB-1xL4
             capacityType: spot
-            enabled: true
+            enabled: ${{ inputs.run_gpu }}
           - name: Bundled storage on-demand
             test: TestLiveCloudProviderCreateBundledStorage
             plans: STARTER-1xCPU-2GB,STARTER-2xCPU-2GB

@@ -98,6 +98,8 @@ jobs:
     with:
       k8s_version: "1.35"
       run_ttl: ${{ inputs.nodeclaimttl-tests == 'yes' }}
+      # GPU tests run only on the latest k8s version; move this flag when adding a newer version.
+      run_gpu: true
       image_tag: ${{ inputs.image_tag }}
     secrets:
       KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_1_35 }}
