@@ -31,15 +31,29 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+	karpenterevents "sigs.k8s.io/karpenter/pkg/events"
 )
 
 const defaultTemplateUUID    = "01000000-0000-4000-8000-000160150100"
 const defaultCloudnativePlan = "CLOUDNATIVE-1xCPU-4GB"
 const defaultBundledPlan     = "STARTER-1xCPU-2GB"
+
+// newEventRecorder wires a recorder that writes real Kubernetes events into the test cluster, so
+// provider-emitted events (e.g. NodeClaimFailedToResolveNodeClass) are observable via kubectl describe.
+func newEventRecorder(kubeClientset kubernetes.Interface) karpenterevents.Recorder {
+	broadcaster := record.NewBroadcasterWithCorrelatorOptions(record.CorrelatorOptions{
+		BurstSize: 20,
+		QPS:       10,
+	})
+	broadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClientset.CoreV1().Events("")})
+	return karpenterevents.NewRecorder(broadcaster.NewRecorder(clientgoscheme.Scheme, corev1.EventSource{Component: "karpenter-upcloud-e2e"}))
+}
 
 // e2eTestEnv holds shared cluster clients and the cloud provider for e2e tests.
 type e2eTestEnv struct {
@@ -105,7 +119,7 @@ func newE2ETestEnv(t *testing.T) *e2eTestEnv {
 		clusterEndpoint = ep
 	}
 
-	cp := cloudprovider.NewCloudProvider(kubeClient, kubeClientset, instanceProvider, userdata.NewProvider(), itProvider, cluster.Zone, clusterEndpoint, 30*time.Minute)
+	cp := cloudprovider.NewCloudProvider(kubeClient, kubeClientset, instanceProvider, userdata.NewProvider(), itProvider, cluster.Zone, clusterEndpoint, 30*time.Minute, newEventRecorder(kubeClientset))
 
 	return &e2eTestEnv{
 		ctx:              ctx,

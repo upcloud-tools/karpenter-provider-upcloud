@@ -10,8 +10,10 @@ import (
 	"github.com/awslabs/operatorpkg/status"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
@@ -19,8 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
+	karpenterevents "sigs.k8s.io/karpenter/pkg/events"
 
 	v1alpha2 "github.com/upcloud-tools/karpenter-provider-upcloud/apis/v1alpha2"
+	providerevents "github.com/upcloud-tools/karpenter-provider-upcloud/pkg/events"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instance"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/instancetypes"
 	"github.com/upcloud-tools/karpenter-provider-upcloud/pkg/providers/userdata"
@@ -30,6 +34,7 @@ import (
 type UpCloudCloudProvider struct {
 	client.Client
 	kubernetesInterface  kubernetes.Interface
+	recorder             karpenterevents.Recorder
 	instanceProvider     *instance.Provider
 	userDataProvider     *userdata.Provider
 	instanceTypeProvider *instancetypes.Provider
@@ -47,10 +52,12 @@ func NewCloudProvider(
 	zone string,
 	clusterEndpoint string,
 	repairToleration time.Duration,
+	recorder karpenterevents.Recorder,
 ) *UpCloudCloudProvider {
 	return &UpCloudCloudProvider{
 		Client:               kubeClient,
 		kubernetesInterface:  kubeInterface,
+		recorder:             recorder,
 		instanceProvider:     instanceProvider,
 		userDataProvider:     userDataProvider,
 		instanceTypeProvider: instanceTypeProvider,
@@ -239,6 +246,12 @@ func (p *UpCloudCloudProvider) GetInstanceTypes(ctx context.Context, nodePool *k
 func (p *UpCloudCloudProvider) IsDrifted(ctx context.Context, nodeClaim *karpv1.NodeClaim) (cloudprovider.DriftReason, error) {
 	nodeClass, err := p.resolveNodeClass(ctx, nodeClaim)
 	if err != nil {
+		// A deleted (or unset) NodeClass is not a transient condition to requeue on: report an event
+		// so the operator notices, and leave the NodeClaim undisrupted until a NodeClass reappears.
+		if apierrors.IsNotFound(err) {
+			p.recorder.Publish(providerevents.NodeClaimFailedToResolveNodeClass(nodeClaim))
+			return "", nil
+		}
 		return "", cloudprovider.IgnoreNodeClaimNotFoundError(fmt.Errorf("resolving node class: %w", err))
 	}
 
@@ -326,6 +339,10 @@ func instanceTypeRequirement(nc *karpv1.NodeClaim) *karpv1.NodeSelectorRequireme
 }
 
 func (p *UpCloudCloudProvider) resolveNodeClass(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha2.UpCloudNodeClass, error) {
+	if nodeClaim.Spec.NodeClassRef == nil {
+		return nil, apierrors.NewNotFound(
+			schema.GroupResource{Group: v1alpha2.Group, Resource: "upcloudnodeclasses"}, "")
+	}
 	nc := &v1alpha2.UpCloudNodeClass{}
 	if err := p.Client.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nc); err != nil {
 		return nil, err

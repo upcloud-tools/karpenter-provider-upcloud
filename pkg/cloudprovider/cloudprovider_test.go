@@ -23,11 +23,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	crinterceptor "sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	karpentercloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
+	karpenterevents "sigs.k8s.io/karpenter/pkg/events"
 )
 
 // ---- fake UpCloud server service ----
@@ -174,7 +177,7 @@ func newTestProvider(t *testing.T) (*UpCloudCloudProvider, *fakeServer, client.C
 		t.Fatalf("refresh instance types: %v", err)
 	}
 
-	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute)
+	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute, karpenterevents.NewRecorder(record.NewFakeRecorder(100)))
 	return cp, fakeSrv, kubeClient
 }
 
@@ -466,6 +469,94 @@ func TestIsDriftedNoAnnotation(t *testing.T) {
 	}
 }
 
+func TestIsDriftedMissingNodeClass(t *testing.T) {
+	cp, _, kubeClient := newTestProvider(t)
+	created, err := cp.Create(context.Background(), newTestNodeClaim())
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+
+	// Delete the NodeClass out from under the NodeClaim, as an operator might.
+	nc := &apisv1alpha2.UpCloudNodeClass{}
+	if err := kubeClient.Get(context.Background(), types.NamespacedName{Name: "default"}, nc); err != nil {
+		t.Fatalf("get nodeclass: %v", err)
+	}
+	if err := kubeClient.Delete(context.Background(), nc); err != nil {
+		t.Fatalf("delete nodeclass: %v", err)
+	}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	cp.recorder = karpenterevents.NewRecorder(fakeRecorder)
+
+	reason, err := cp.IsDrifted(context.Background(), created)
+	if err != nil {
+		t.Errorf("expected no error for missing NodeClass, got %v", err)
+	}
+	if reason != "" {
+		t.Errorf("expected no drift for missing NodeClass, got %q", reason)
+	}
+	select {
+	case evt := <-fakeRecorder.Events:
+		if !strings.Contains(evt, "NodeClaimFailedToResolveNodeClass") {
+			t.Errorf("expected resolve-failure event, got %q", evt)
+		}
+	default:
+		t.Error("expected a NodeClaimFailedToResolveNodeClass event to be published")
+	}
+}
+
+func TestIsDriftedNilNodeClassRef(t *testing.T) {
+	cp, _, _ := newTestProvider(t)
+	claim := newTestNodeClaim()
+	claim.Spec.NodeClassRef = nil
+	claim.Annotations = map[string]string{apisv1alpha2.NodeClassHashAnnotationKey: "stale-hash"}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	cp.recorder = karpenterevents.NewRecorder(fakeRecorder)
+
+	reason, err := cp.IsDrifted(context.Background(), claim)
+	if err != nil {
+		t.Errorf("expected no error for nil NodeClassRef, got %v", err)
+	}
+	if reason != "" {
+		t.Errorf("expected no drift for nil NodeClassRef, got %q", reason)
+	}
+	select {
+	case evt := <-fakeRecorder.Events:
+		if !strings.Contains(evt, "NodeClaimFailedToResolveNodeClass") {
+			t.Errorf("expected resolve-failure event, got %q", evt)
+		}
+	default:
+		t.Error("expected a NodeClaimFailedToResolveNodeClass event to be published")
+	}
+}
+
+func TestIsDriftedTransientResolveError(t *testing.T) {
+	cp, _, kubeClient := newTestProvider(t)
+	created, err := cp.Create(context.Background(), newTestNodeClaim())
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+
+	// A non-NotFound API error must still propagate so the reconcile retries, unlike the NotFound path.
+	cp.Client = crinterceptor.NewClient(kubeClient.(client.WithWatch), crinterceptor.Funcs{
+		Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+			return fmt.Errorf("boom")
+		},
+	})
+
+	reason, err := cp.IsDrifted(context.Background(), created)
+	if err == nil {
+		t.Fatal("expected transient resolve error to propagate")
+	}
+	if !strings.Contains(err.Error(), "resolving node class") {
+		t.Errorf("expected wrapped resolve error, got %v", err)
+	}
+	if reason != "" {
+		t.Errorf("expected no drift reason on error, got %q", reason)
+	}
+}
+
 func TestRepairPolicies(t *testing.T) {
 	cp, _, _ := newTestProvider(t)
 	policies := cp.RepairPolicies()
@@ -609,7 +700,7 @@ func TestStorageOverriddenForBundledStoragePlan(t *testing.T) {
 		t.Fatalf("refresh instance types: %v", err)
 	}
 
-	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute)
+	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute, karpenterevents.NewRecorder(record.NewFakeRecorder(100)))
 
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-nc"},
@@ -704,7 +795,7 @@ func TestStorageForwardedForFlexiblePlan(t *testing.T) {
 		t.Fatalf("refresh instance types: %v", err)
 	}
 
-	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute)
+	cp := NewCloudProvider(kubeClient, kubernetes.Interface(csClient), instanceProvider, userDataProvider, itProvider, "de-fra1", "https://10.0.0.1:6443", 30*time.Minute, karpenterevents.NewRecorder(record.NewFakeRecorder(100)))
 
 	nodeClaim := &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-nc"},

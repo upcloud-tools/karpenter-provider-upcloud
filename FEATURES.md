@@ -145,6 +145,8 @@ The following fields trigger drift when changed: `zone`, `plan`, `storage`, `ssh
 
 Nodes created before drift detection existed carry no hash annotation and are left untouched to avoid disrupting running workloads.
 
+If a NodeClaim's `UpCloudNodeClass` is deleted, drift is not evaluated (the NodeClaim is left running) and a `NodeClaimFailedToResolveNodeClass` warning event is recorded on the NodeClaim.
+
 ### Node repair
 
 Karpenter's built-in `node.health` controller calls the provider's `RepairPolicies()` and force-terminates (then replaces) any node that stays in an unhealthy state past its toleration window. This provider watches the standard Kubernetes `Ready` condition:
