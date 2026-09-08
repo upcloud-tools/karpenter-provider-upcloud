@@ -67,6 +67,7 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 │   ├── controllers/           ← Kubernetes controllers
 │   │   ├── nodeclaimttl/      ← alpha TTL controller
 │   │   └── nodeclass/         ← nodeclass reconciliation
+│   ├── events/                ← Kubernetes events emitted by the provider
 │   ├── providers/
 │   │   ├── options.go         ← env var parsing
 │   │   ├── instance/          ← server lifecycle (Create/Delete/Get/List)
@@ -75,6 +76,7 @@ Use a dedicated token or sub-account with the above permissions. `UPCLOUD_TOKEN`
 │   └── util/                  ← shared utility helpers
 ├── deploy/helm/               ← Helm chart
 ├── examples/                  ← sample CRDs
+├── test/e2e/                  ← end-to-end integration tests
 ├── Makefile
 ```
 
