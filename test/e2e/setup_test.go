@@ -34,7 +34,9 @@ import (
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	crzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	karpenterevents "sigs.k8s.io/karpenter/pkg/events"
@@ -43,6 +45,13 @@ import (
 const defaultTemplateUUID    = "01000000-0000-4000-8000-000160150100"
 const defaultCloudnativePlan = "CLOUDNATIVE-1xCPU-4GB"
 const defaultBundledPlan     = "STARTER-1xCPU-2GB"
+
+// TestMain installs a controller-runtime logger before any test runs. The provider code logs through log.FromContext 
+// (e.g. instance-type refresh, bundled-storage overrides), and avoids the "log.SetLogger(...) was never called" stack-trace warning.
+func TestMain(m *testing.M) {
+	ctrl.SetLogger(crzap.New(crzap.UseDevMode(true), crzap.WriteTo(os.Stderr)))
+	os.Exit(m.Run())
+}
 
 // newEventRecorder wires a recorder that writes real Kubernetes events into the test cluster, so
 // provider-emitted events (e.g. NodeClaimFailedToResolveNodeClass) are observable via kubectl describe.
